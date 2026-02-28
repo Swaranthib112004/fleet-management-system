@@ -1,0 +1,19 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+/* custom marker style for Leaflet vehicle pins */
+.vehicle-pin {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #ffffffcc; /* semi‑opaque white border for contrast */
+  box-shadow: 0 0 3px rgba(0,0,0,0.25);
+}
+
+/* animate marker movement by transitioning transform (Leaflet updates translate) */
+.leaflet-marker-icon {
+  transition: transform 1s linear;
+}
+
+/* polylines are drawn thinner/transparent by default in component styles */

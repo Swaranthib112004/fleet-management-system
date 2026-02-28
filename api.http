@@ -1,0 +1,83 @@
+@baseUrl = http://localhost:5000/api
+
+### LOGIN (AUTH WORKING)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "Password123!"
+}
+
+### CREATE VEHICLE
+POST {{baseUrl}}/vehicles
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NjNjNWU5Mzk0OTBhYmRjZmE1MWM1OSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2ODE2MDI5MCwiZXhwIjoxNzY4MTYzODkwfQ.oKNWXBlmB4_0wh99us5jTdsJNFItvXmCM-auv15xRCs
+Content-Type: application/json
+
+{
+  "vin": "2HGCM822233A00998",
+  "licensePlate": "TN-09-2116",
+  "make": "Honda2",
+  "model": "City6",
+  "year": 2021
+}
+
+### LIST VEHICLES (PAGINATION + AUTH)
+GET {{baseUrl}}/vehicles?page=1&limit=5
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NjNjNWU5Mzk0OTBhYmRjZmE1MWM1OSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2ODE2MDI5MCwiZXhwIjoxNzY4MTYzODkwfQ.oKNWXBlmB4_0wh99us5jTdsJNFItvXmCM-auv15xRCs
+
+### CREATE DRIVER
+POST {{baseUrl}}/drivers
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NjNjNWU5Mzk0OTBhYmRjZmE1MWM1OSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2ODE2MDI5MCwiZXhwIjoxNzY4MTYzODkwfQ.oKNWXBlmB4_0wh99us5jTdsJNFItvXmCM-auv15xRCs
+Content-Type: application/json
+
+{
+  "name": "John",
+  "licenseNumber": "DL-4110198834",
+  "licenseExpiry": "2027-12-31"
+}
+
+
+### LIST DRIVERS
+GET {{baseUrl}}/drivers
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NjNjNWU5Mzk0OTBhYmRjZmE1MWM1OSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2ODE2MDI5MCwiZXhwIjoxNzY4MTYzODkwfQ.oKNWXBlmB4_0wh99us5jTdsJNFItvXmCM-auv15xRCs
+
+
+### ASSIGN DRIVER TO VEHICLE
+POST {{baseUrl}}/drivers/assign
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NjNjNWU5Mzk0OTBhYmRjZmE1MWM1OSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2ODE1Mzc2NiwiZXhwIjoxNzY4MTU3MzY2fQ.HYtfb_SG1xNF4-2yi-U15asBbWXhh4FlMarCVGiyDPo
+Content-Type: application/json
+
+{
+  "driverId": "PASTE_DRIVER_ID",
+  "vehicleId": "PASTE_VEHICLE_ID"
+}
+
+
+### LOG MAINTENANCE
+POST {{baseUrl}}/maintenance
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NjNjNWU5Mzk0OTBhYmRjZmE1MWM1OSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2ODE1Mzc2NiwiZXhwIjoxNzY4MTU3MzY2fQ.HYtfb_SG1xNF4-2yi-U15asBbWXhh4FlMarCVGiyDPo
+Content-Type: application/json
+
+{
+  "vehicleId": "PASTE_VEHICLE_ID",
+  "serviceType": "Oil Change",
+  "cost": 2500,
+  "serviceDate": "2026-01-10"
+}
+
+
+### LIST MAINTENANCE LOGS
+GET {{baseUrl}}/maintenance
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NjNjNWU5Mzk0OTBhYmRjZmE1MWM1OSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2ODE2MDI5MCwiZXhwIjoxNzY4MTYzODkwfQ.oKNWXBlmB4_0wh99us5jTdsJNFItvXmCM-auv15xRCs
+### MAINTENANCE ANALYTICS (CHART READY)
+GET {{baseUrl}}/analytics/maintenance/trends?months=6
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NjNjNWU5Mzk0OTBhYmRjZmE1MWM1OSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2ODE2MDI5MCwiZXhwIjoxNzY4MTYzODkwfQ.oKNWXBlmB4_0wh99us5jTdsJNFItvXmCM-auv15xRCs
+
+### FILE UPLOAD (DOCUMENTS)
+POST {{baseUrl}}/uploads
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NjNjNWU5Mzk0OTBhYmRjZmE1MWM1OSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2ODE1Mzc2NiwiZXhwIjoxNzY4MTU3MzY2fQ.HYtfb_SG1xNF4-2yi-U15asBbWXhh4FlMarCVGiyDPo
+Content-Type: multipart/form-data
+
+file=@./backend/uploads/sample.pdf
+relatedTo=vehicle

@@ -1,0 +1,478 @@
+import React from "react";
+import {
+  Plus,
+  Search,
+  Filter,
+  Download,
+  MoreVertical,
+  Edit2,
+  Trash2,
+  Eye,
+  Truck,
+  Car,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  X,
+} from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { toast } from "sonner";
+import { cn } from "../lib/utils";
+import { vehiclesApi } from "../lib/api";
+import type { Vehicle } from "../lib/types";
+
+type VehicleFormData = Omit<Vehicle, "id">;
+
+const EMPTY_FORM: VehicleFormData = {
+  registration: "",
+  make: "",
+  model: "",
+  year: new Date().getFullYear(),
+  type: "Van",
+  fuel: "Diesel",
+  mileage: 0,
+  status: "Active",
+  driver: "Unassigned",
+  lastService: new Date().toISOString().slice(0, 10),
+};
+
+export function VehiclesPage() {
+  const [vehicles, setVehicles] = React.useState<Vehicle[]>([]);
+  const [loadingData, setLoadingData] = React.useState(false);
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [editingVehicle, setEditingVehicle] = React.useState<Vehicle | null>(null);
+  const [viewingVehicle, setViewingVehicle] = React.useState<Vehicle | null>(null);
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState<string>("All");
+  const [formData, setFormData] = React.useState<VehicleFormData>(EMPTY_FORM);
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [totalPages, setTotalPages] = React.useState(1);
+  const [totalCount, setTotalCount] = React.useState(0);
+  const pageSize = 5;
+
+  const [globalStats, setGlobalStats] = React.useState({
+    total: 0,
+    active: 0,
+    maintenance: 0,
+    inactive: 0,
+  });
+
+  // ----- Handlers -----
+  const openAddModal = () => {
+    setEditingVehicle(null);
+    setFormData(EMPTY_FORM);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (vehicle: Vehicle) => {
+    setEditingVehicle(vehicle);
+    setFormData({ ...vehicle });
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingVehicle) {
+        await vehiclesApi.update(editingVehicle.id, formData);
+        toast.success(`Vehicle ${formData.registration} updated successfully`);
+      } else {
+        await vehiclesApi.create(formData);
+        toast.success(`Vehicle ${formData.registration} registered successfully`);
+      }
+      await reloadVehicles();
+    } catch (err: any) {
+      toast.error(err.message || "Operation failed");
+    } finally {
+      setIsModalOpen(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this vehicle?")) return;
+    try {
+      await vehiclesApi.delete(id);
+      toast.error("Vehicle deleted");
+      await reloadVehicles();
+    } catch (err: any) {
+      toast.error(err.message || "Delete failed");
+    }
+  };
+
+  const handleFormChange = (field: keyof VehicleFormData, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Reset page when filter changes
+  React.useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
+
+  const reloadVehicles = async () => {
+    setLoadingData(true);
+    try {
+      const resp: any = await vehiclesApi.getAll({
+        page: currentPage,
+        limit: pageSize,
+        search: searchTerm,
+        status: statusFilter === "All" ? undefined : statusFilter.toLowerCase(),
+      });
+      // Support both shapes:
+      // 1) paginated object: { total, page, pages, vehicles }
+      // 2) direct array: [ { ...vehicle }, ... ]
+      if (Array.isArray(resp)) {
+        setVehicles(resp);
+        setTotalCount(resp.length);
+        setTotalPages(Math.max(1, Math.ceil(resp.length / pageSize)));
+      } else {
+        setVehicles(resp.vehicles || []);
+        setTotalPages(resp.pages || Math.max(1, Math.ceil((resp.vehicles?.length || 0) / pageSize)));
+        setTotalCount(resp.total !== undefined ? resp.total : (resp.vehicles ? resp.vehicles.length : 0));
+        if (resp.globalStats) setGlobalStats(resp.globalStats);
+      }
+    } catch (err: any) {
+      // Silently fall back to empty list instead of showing error
+      // This prevents red error boxes on navigation
+      console.warn("Failed to load vehicles:", err.message);
+      setVehicles([]);
+      setTotalPages(1);
+      setTotalCount(0);
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
+  React.useEffect(() => {
+    reloadVehicles();
+  }, [currentPage, searchTerm, statusFilter]);
+
+  return (
+    <div className="space-y-8 max-w-[1600px] mx-auto pb-10">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Vehicles Management</h1>
+          <p className="text-gray-500 font-medium">Manage your fleet inventory, tracking status and assignments.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              const csv = ["Registration,Make,Model,Year,Type,Fuel,Mileage,Status,Driver,LastService"]
+                .concat(vehicles.map((v) => `${v.registration},${v.make},${v.model},${v.year},${v.type},${v.fuel},${v.mileage},${v.status},${v.driver},${v.lastService}`))
+                .join("\n");
+              const blob = new Blob([csv], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "vehicles.csv";
+              a.click();
+              URL.revokeObjectURL(url);
+              toast.success("CSV exported");
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm"
+          >
+            <Download size={18} />
+            Export CSV
+          </button>
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
+          >
+            <Plus size={18} />
+            Add Vehicle
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Bar */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-2 bg-gray-50 rounded-[2rem] border border-gray-100">
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><Truck size={20} /></div>
+          <div><p className="text-xs font-bold text-gray-500">Total</p><p className="text-xl font-bold">{globalStats.total}</p></div>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center"><CheckCircle2 size={20} /></div>
+          <div><p className="text-xs font-bold text-gray-500">Active</p><p className="text-xl font-bold">{globalStats.active}</p></div>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center"><Clock size={20} /></div>
+          <div><p className="text-xs font-bold text-gray-500">Service</p><p className="text-xl font-bold">{globalStats.maintenance}</p></div>
+        </div>
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center"><AlertCircle size={20} /></div>
+          <div><p className="text-xs font-bold text-gray-500">Inactive</p><p className="text-xl font-bold">{globalStats.inactive}</p></div>
+        </div>
+      </div>
+
+      {/* Filters & Table */}
+      <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 w-full md:w-80">
+            <Search size={18} className="text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search registration, make..."
+              className="bg-transparent border-none focus:ring-0 text-sm outline-none w-full"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm("")} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
+            {["All", "Active", "Maintenance", "Inactive"].map((f) => (
+              <button
+                key={f}
+                onClick={() => setStatusFilter(f)}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-sm font-bold transition-all",
+                  statusFilter === f ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50/50">
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vehicle Details</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Assigned Driver</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Mileage</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Last Service</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {vehicles.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-16 text-center text-gray-400 font-medium">
+                    No vehicles found matching your criteria.
+                  </td>
+                </tr>
+              ) : (
+                vehicles.map((v) => (
+                  <motion.tr key={v.id} layout className="hover:bg-gray-50/30 transition-all group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
+                          {v.type === "Van" || v.type === "Car" ? <Car size={24} /> : <Truck size={24} />}
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 leading-none mb-1">{v.registration}</p>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-tighter">{v.make} {v.model} • {v.year}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-xs font-bold",
+                        v.status === "Active" && "bg-green-50 text-green-600",
+                        v.status === "Maintenance" && "bg-orange-50 text-orange-600",
+                        v.status === "Inactive" && "bg-red-50 text-red-600",
+                      )}>{v.status}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500">
+                          {v.driver !== "Unassigned" ? v.driver.split(" ").map((n) => n[0]).join("") : "-"}
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">{v.driver}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-sm font-bold text-gray-900">{v.mileage.toLocaleString()} mi</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{v.fuel}</p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-sm font-semibold text-gray-600">{v.lastService}</p>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setViewingVehicle(v)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"><Eye size={18} /></button>
+                        <button onClick={() => openEditModal(v)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"><Edit2 size={18} /></button>
+                        <button onClick={() => handleDelete(v.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 size={18} /></button>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="p-6 border-t border-gray-50 flex justify-between items-center bg-gray-50/20">
+          <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">
+            Showing {vehicles.length} of {totalCount} vehicles
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-white transition-all disabled:text-gray-400 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="text-sm font-bold text-gray-500 px-2">{currentPage} / {totalPages}</span>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-white transition-all disabled:text-gray-400 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* View Vehicle Detail Modal */}
+      <AnimatePresence>
+        {viewingVehicle && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setViewingVehicle(null)}>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl p-8"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    {viewingVehicle.type === "Van" || viewingVehicle.type === "Car" ? <Car size={28} /> : <Truck size={28} />}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">{viewingVehicle.registration}</h2>
+                    <p className="text-sm text-gray-500 font-medium">{viewingVehicle.make} {viewingVehicle.model} • {viewingVehicle.year}</p>
+                  </div>
+                </div>
+                <button onClick={() => setViewingVehicle(null)} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {([
+                  ["Status", viewingVehicle.status],
+                  ["Type", viewingVehicle.type],
+                  ["Fuel", viewingVehicle.fuel],
+                  ["Mileage", `${viewingVehicle.mileage.toLocaleString()} mi`],
+                  ["Driver", viewingVehicle.driver],
+                  ["Last Service", viewingVehicle.lastService],
+                ] as [string, string][]).map(([label, val]) => (
+                  <div key={label} className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</p>
+                    <p className="text-sm font-bold text-gray-900">{val}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 flex gap-3">
+                <button onClick={() => { setViewingVehicle(null); openEditModal(viewingVehicle); }} className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all">Edit Vehicle</button>
+                <button onClick={() => setViewingVehicle(null)} className="flex-1 py-3 rounded-2xl border border-gray-200 font-bold hover:bg-gray-50 transition-all">Close</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Add/Edit Vehicle Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl p-8 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-start mb-8">
+                <div>
+                  <h2 className="text-2xl font-bold">{editingVehicle ? "Edit Vehicle" : "Register New Vehicle"}</h2>
+                  <p className="text-gray-500 font-medium">Enter technical specifications and initial assignments.</p>
+                </div>
+                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
+              </div>
+
+              <form className="space-y-6" onSubmit={handleSubmit}>
+                <div className="grid grid-cols-2 gap-6">
+                  <FormInput label="Registration Number" placeholder="e.g. ABC-1234" required value={formData.registration} onChange={(v) => handleFormChange("registration", v)} />
+                  <FormInput label="Vehicle Type" type="select" options={["Van", "Light Truck", "Heavy Truck", "Car"]} value={formData.type} onChange={(v) => handleFormChange("type", v)} />
+                  <FormInput label="Make" placeholder="e.g. Volvo" value={formData.make} onChange={(v) => handleFormChange("make", v)} />
+                  <FormInput label="Model" placeholder="e.g. FH16" value={formData.model} onChange={(v) => handleFormChange("model", v)} />
+                  <FormInput label="Fuel Type" type="select" options={["Diesel", "Electric", "Petrol", "CNG"]} value={formData.fuel} onChange={(v) => handleFormChange("fuel", v)} />
+                  <FormInput label="Mileage (Initial)" type="number" placeholder="0" value={String(formData.mileage)} onChange={(v) => handleFormChange("mileage", Number(v))} />
+                  <FormInput label="Year" type="number" placeholder="2024" value={String(formData.year)} onChange={(v) => handleFormChange("year", Number(v))} />
+                  <FormInput label="Status" type="select" options={["Active", "Maintenance", "Inactive"]} value={formData.status} onChange={(v) => handleFormChange("status", v)} />
+                  <FormInput label="Assigned Driver" placeholder="e.g. Alex Thompson" value={formData.driver} onChange={(v) => handleFormChange("driver", v)} />
+                  <FormInput label="Last Service Date" type="date" value={formData.lastService} onChange={(v) => handleFormChange("lastService", v)} />
+                </div>
+
+                <div className="pt-6 border-t border-gray-100 flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="flex-1 py-4 rounded-2xl border border-gray-200 font-bold hover:bg-gray-50 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-100"
+                  >
+                    {editingVehicle ? "Save Changes" : "Register Asset"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function FormInput({
+  label,
+  placeholder,
+  type = "text",
+  options,
+  required,
+  value,
+  onChange,
+}: {
+  label: string;
+  placeholder?: string;
+  type?: string;
+  options?: string[];
+  required?: boolean;
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">{label}</label>
+      {type === "select" ? (
+        <select
+          className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium appearance-none"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {options!.map((o) => (
+            <option key={o} value={o}>{o}</option>
+          ))}
+        </select>
+      ) : (
+        <input
+          type={type}
+          placeholder={placeholder}
+          required={required}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium"
+        />
+      )}
+    </div>
+  );
+}

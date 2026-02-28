@@ -1,0 +1,391 @@
+{
+  "authentication": {
+    "login": {
+      "endpoint": "POST /api/auth/login",
+      "body": {
+        "email": "admin@test.com",
+        "password": "test",
+        "role": "admin"
+      },
+      "expectedResponse": {
+        "token": "eyJhbGciOiJIUzI1NiIs...",
+        "user": {
+          "id": "user_id",
+          "email": "admin@test.com",
+          "role": "admin"
+        }
+      }
+    }
+  },
+  "vehicles": {
+    "create": {
+      "endpoint": "POST /api/vehicles",
+      "samples": [
+        {
+          "registration": "LN20ABC",
+          "make": "Volvo",
+          "model": "FH16",
+          "year": 2023,
+          "type": "Articulated Truck",
+          "fuel": "Diesel",
+          "mileage": 15000,
+          "status": "Active",
+          "driver": "Unassigned",
+          "lastService": "2026-02-15"
+        },
+        {
+          "registration": "MN21DEF",
+          "make": "Mercedes",
+          "model": "Actros",
+          "year": 2022,
+          "type": "Flatbed",
+          "fuel": "Diesel",
+          "mileage": 45000,
+          "status": "Active",
+          "driver": "John Smith",
+          "lastService": "2026-01-20"
+        },
+        {
+          "registration": "EV22GHI",
+          "make": "Tesla",
+          "model": "Semi",
+          "year": 2024,
+          "type": "Electric Truck",
+          "fuel": "Electric",
+          "mileage": 5000,
+          "status": "Active",
+          "driver": "Unassigned",
+          "lastService": "2026-02-27"
+        }
+      ]
+    },
+    "update": {
+      "endpoint": "PUT /api/vehicles/{id}",
+      "sample": {
+        "mileage": 16500,
+        "status": "Maintenance",
+        "driver": "Jane Doe",
+        "lastService": "2026-02-27"
+      }
+    },
+    "read": {
+      "endpoint": "GET /api/vehicles or GET /api/vehicles/{id}",
+      "note": "No body required"
+    }
+  },
+  "drivers": {
+    "create": {
+      "endpoint": "POST /api/drivers",
+      "samples": [
+        {
+          "name": "John Michael Smith",
+          "licenseNumber": "DL2023UK001",
+          "licenseExpiry": "2028-12-31",
+          "contact": {
+            "phone": "+44 7700 900000",
+            "email": "john.smith@email.com"
+          },
+          "assignedVehicle": null
+        },
+        {
+          "name": "Sarah Jane Williams",
+          "licenseNumber": "DL2022UK002",
+          "licenseExpiry": "2027-06-15",
+          "contact": {
+            "phone": "+44 7700 900111",
+            "email": "sarah.williams@email.com"
+          },
+          "assignedVehicle": null
+        },
+        {
+          "name": "Muhammad Ahmed Hassan",
+          "licenseNumber": "DL2024UK003",
+          "licenseExpiry": "2029-09-30",
+          "contact": {
+            "phone": "+44 7700 900222",
+            "email": "m.hassan@email.com"
+          },
+          "assignedVehicle": null
+        }
+      ]
+    },
+    "update": {
+      "endpoint": "PUT /api/drivers/{id}",
+      "sample": {
+        "name": "John Michael Smith",
+        "licenseExpiry": "2029-12-31",
+        "contact": {
+          "phone": "+44 7700 900111",
+          "email": "john.smith.new@email.com"
+        }
+      }
+    }
+  },
+  "maintenance": {
+    "create": {
+      "endpoint": "POST /api/maintenance",
+      "samples": [
+        {
+          "vehicle": "VEHICLE_ID_HERE",
+          "type": "service",
+          "notes": "Regular 50,000 km service - oil change, filter replacement, full inspection",
+          "cost": 450.00,
+          "performedAt": "2026-02-27T10:30:00Z",
+          "nextDueAt": "2026-08-27T10:30:00Z"
+        },
+        {
+          "vehicle": "VEHICLE_ID_HERE",
+          "type": "inspection",
+          "notes": "Safety inspection - brakes, lights, tires, steering",
+          "cost": 150.00,
+          "performedAt": "2026-02-25T14:00:00Z",
+          "nextDueAt": "2026-05-25T14:00:00Z"
+        },
+        {
+          "vehicle": "VEHICLE_ID_HERE",
+          "type": "repair",
+          "notes": "Brake system repair - replaced worn pads and rotors",
+          "cost": 650.00,
+          "performedAt": "2026-02-20T09:00:00Z",
+          "nextDueAt": "2027-02-20T09:00:00Z"
+        }
+      ],
+      "typeOptions": ["inspection", "repair", "service", "other"]
+    },
+    "update": {
+      "endpoint": "PUT /api/maintenance/{id}",
+      "sample": {
+        "type": "repair",
+        "notes": "Brake system repair - replaced worn pads and rotors",
+        "cost": 650.00,
+        "nextDueAt": "2026-12-27T10:30:00Z"
+      }
+    }
+  },
+  "routes": {
+    "create": {
+      "endpoint": "POST /api/routes",
+      "samples": [
+        {
+          "routeCode": "RT-LDN-001",
+          "vehicle": "VEHICLE_ID_HERE",
+          "driver": "DRIVER_ID_HERE",
+          "startLocation": {
+            "name": "London Depot",
+            "latitude": 51.5074,
+            "longitude": -0.1278
+          },
+          "endLocation": {
+            "name": "Manchester Distribution Center",
+            "latitude": 53.4808,
+            "longitude": -2.2426
+          },
+          "waypoints": [
+            {
+              "latitude": 52.2053,
+              "longitude": -0.1218,
+              "address": "Luton Service Point",
+              "stopType": "pickup",
+              "estimatedTime": "2026-02-27T13:00:00Z",
+              "notes": "Collect 50 parcels"
+            },
+            {
+              "latitude": 52.6369,
+              "longitude": -1.1398,
+              "address": "Leicester Distribution",
+              "stopType": "delivery",
+              "estimatedTime": "2026-02-27T15:30:00Z",
+              "notes": "Deliver 25 packages"
+            }
+          ],
+          "status": "planned",
+          "startTime": "2026-02-27T09:00:00Z",
+          "estimatedEndTime": "2026-02-27T18:00:00Z",
+          "totalDistance": 280,
+          "totalDuration": 540,
+          "totalStops": 2,
+          "routeType": "standard"
+        },
+        {
+          "routeCode": "RT-BRM-002",
+          "vehicle": "VEHICLE_ID_HERE",
+          "driver": "DRIVER_ID_HERE",
+          "startLocation": {
+            "name": "Birmingham Hub",
+            "latitude": 52.5086,
+            "longitude": -1.8753
+          },
+          "endLocation": {
+            "name": "Bristol Distribution",
+            "latitude": 51.4545,
+            "longitude": -2.5879
+          },
+          "waypoints": [
+            {
+              "latitude": 52.0096,
+              "longitude": -2.4125,
+              "address": "Worcester Depot",
+              "stopType": "delivery",
+              "estimatedTime": "2026-02-27T10:45:00Z",
+              "notes": "Deliver 15 packages"
+            }
+          ],
+          "status": "planned",
+          "startTime": "2026-02-27T08:00:00Z",
+          "estimatedEndTime": "2026-02-27T14:30:00Z",
+          "totalDistance": 120,
+          "totalDuration": 390,
+          "totalStops": 1,
+          "routeType": "optimized"
+        }
+      ],
+      "stopTypes": ["pickup", "delivery", "depot"],
+      "statuses": ["planned", "active", "completed", "cancelled"],
+      "routeTypes": ["standard", "optimized", "emergency"]
+    },
+    "update": {
+      "endpoint": "PUT /api/routes/{id}",
+      "sample": {
+        "status": "active",
+        "startTime": "2026-02-27T08:45:00Z"
+      }
+    }
+  },
+  "documents": {
+    "create": {
+      "endpoint": "POST /api/uploads",
+      "contentType": "multipart/form-data",
+      "fields": {
+        "file": "binary file data",
+        "vehicleId": "optional - link to vehicle",
+        "driverId": "optional - link to driver",
+        "type": "optional - insurance, registration, maintenance, inspection"
+      },
+      "curlExample": "curl -X POST http://localhost:8000/api/uploads -H 'Authorization: Bearer {token}' -F 'file=@/path/to/document.pdf' -F 'vehicleId=VEHICLE_ID' -F 'type=insurance'"
+    }
+  },
+  "reminders": {
+    "create": {
+      "endpoint": "POST /api/reminders",
+      "samples": [
+        {
+          "user": "USER_ID_HERE",
+          "vehicle": "VEHICLE_ID_HERE",
+          "type": "maintenance",
+          "message": "Vehicle LN20ABC is due for 100,000 km service",
+          "scheduleAt": "2026-03-15T09:00:00Z"
+        },
+        {
+          "user": "USER_ID_HERE",
+          "vehicle": "VEHICLE_ID_HERE",
+          "type": "service",
+          "message": "MOT test due for vehicle EV22GHI",
+          "scheduleAt": "2026-04-01T10:00:00Z"
+        },
+        {
+          "user": "USER_ID_HERE",
+          "vehicle": "VEHICLE_ID_HERE",
+          "type": "other",
+          "message": "Driver license renewal reminder for John Smith",
+          "scheduleAt": "2026-12-01T08:00:00Z"
+        }
+      ],
+      "typeOptions": ["maintenance", "service", "other"],
+      "statusOptions": ["pending", "sent", "failed", "cancelled"]
+    },
+    "update": {
+      "endpoint": "PUT /api/reminders/{id}",
+      "sample": {
+        "scheduleAt": "2026-03-16T10:00:00Z",
+        "status": "sent"
+      }
+    }
+  },
+  "roles": {
+    "create": {
+      "endpoint": "POST /api/roles",
+      "samples": [
+        {
+          "name": "fleet_supervisor",
+          "perms": "view_all,edit_routes,manage_drivers,view_reports"
+        },
+        {
+          "name": "maintenance_manager",
+          "perms": "view_all,manage_maintenance,view_reports"
+        },
+        {
+          "name": "driver",
+          "perms": "view_own_routes,update_location"
+        }
+      ]
+    },
+    "update": {
+      "endpoint": "PUT /api/roles/{id}",
+      "sample": {
+        "name": "fleet_supervisor",
+        "perms": "view_all,edit_routes,manage_drivers,view_reports,approve_maintenance"
+      }
+    }
+  },
+  "dashboard": {
+    "overview": {
+      "endpoint": "GET /api/dashboard/overview",
+      "method": "GET",
+      "body": "none",
+      "expectedResponse": {
+        "totalVehicles": 45,
+        "totalDrivers": 42,
+        "activeRoutes": 8,
+        "maintenanceDue": 3,
+        "fleetHealthScore": 87.5,
+        "averageFuelCost": 45.50,
+        "totalDistance": 125480
+      }
+    }
+  },
+  "analytics": {
+    "summary": {
+      "endpoint": "GET /api/analytics/summary",
+      "method": "GET",
+      "body": "none",
+      "expectedResponse": {
+        "timestamp": "2026-02-27T10:45:00Z",
+        "metrics": {
+          "totalVehicles": 45,
+          "totalDrivers": 42,
+          "totalMaintenanceRecords": 156,
+          "pendingMaintenanceCount": 3,
+          "averageFleetHealthScore": 87.5
+        }
+      }
+    }
+  },
+  "gps": {
+    "fleetLocations": {
+      "endpoint": "GET /api/gps/fleet-locations",
+      "method": "GET",
+      "body": "none",
+      "expectedResponse": {
+        "data": [
+          {
+            "vehicleId": "VEHICLE_ID",
+            "registration": "LN20ABC",
+            "latitude": 51.5074,
+            "longitude": -0.1278,
+            "speed": 65,
+            "heading": 180,
+            "lastUpdate": "2026-02-27T10:45:30Z",
+            "driverName": "John Smith"
+          }
+        ]
+      }
+    }
+  },
+  "notes": {
+    "authentication": "Always include 'Authorization: Bearer {token}' header in all requests",
+    "timestamps": "Use ISO 8601 format: YYYY-MM-DDTHH:mm:ssZ",
+    "ids": "Replace ID placeholders (VEHICLE_ID_HERE, DRIVER_ID_HERE, etc) with actual MongoDB ObjectIDs",
+    "responses": "200 = Success, 400 = Bad Request, 401 = Unauthorized, 404 = Not Found, 500 = Server Error",
+    "dataValidation": "All required fields must be provided, email formats validated, dates must be valid ISO 8601"
+  }
+}
