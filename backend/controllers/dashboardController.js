@@ -8,8 +8,8 @@ const Audit = require('../models/auditModel');
 exports.getOverview = async (req, res, next) => {
   try {
     const totalVehicles = await Vehicle.countDocuments();
-    const activeVehicles = await Vehicle.countDocuments({ status: { $in: ['active', 'Active'] } });
-    let activeDrivers = await Driver.countDocuments({ status: { $in: ['active', 'Active'] } });
+    const activeVehicles = await Vehicle.countDocuments({ status: /active/i });
+    let activeDrivers = await Driver.countDocuments({ status: /active/i });
     const totalDrivers = await Driver.countDocuments();
 
     // Diagnostic: If data is missing in DB, provide sample count for UI and log warning
@@ -20,12 +20,12 @@ exports.getOverview = async (req, res, next) => {
       console.warn('Dashboard: Drivers exist but none are "Active", fixing first 3...');
       const samples = await Driver.find({}).limit(3);
       for (const s of samples) { s.status = 'Active'; await s.save(); }
-      activeDrivers = await Driver.countDocuments({ status: 'Active' });
+      activeDrivers = await Driver.countDocuments({ status: /active/i });
     }
-    const pendingService = await Maintenance.countDocuments({ status: { $ne: 'Completed' } });
-    const completedService = await Maintenance.countDocuments({ status: 'Completed' });
-    const activeRoutes = await Route.countDocuments({ status: { $in: ['planned', 'in-progress', 'active'] } });
-    const completedRoutes = await Route.countDocuments({ status: 'completed' });
+    const pendingService = await Maintenance.countDocuments({ status: { $not: /completed/i } });
+    const completedService = await Maintenance.countDocuments({ status: /completed/i });
+    const activeRoutes = await Route.countDocuments({ status: /^(planned|in-progress|active)$/i });
+    const completedRoutes = await Route.countDocuments({ status: /completed/i });
 
     // Calculate trend percentages
     const vehicleChange = totalVehicles > 0 ? `+${Math.round((activeVehicles / totalVehicles) * 100)}%` : '+0%';

@@ -7,6 +7,7 @@ const maintenanceSchema = new mongoose.Schema({
   notes: { type: String },
   cost: { type: Number },
   date: { type: String },
+  performedAt: { type: Date },
   status: { type: String, enum: ['Scheduled', 'In Progress', 'Completed'], default: 'Scheduled' },
   createdBy: { type: mongoose.Schema.Types.Mixed }
 }, { timestamps: true });

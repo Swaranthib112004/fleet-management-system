@@ -22,30 +22,36 @@ export function ManagerDashboard() {
   const { user } = useAuth();
 
   const [vehicles, setVehicles] = React.useState<any[]>([]);
+  const [totalVehicles, setTotalVehicles] = React.useState(0);
   const [drivers, setDrivers] = React.useState<any[]>([]);
+  const [totalDrivers, setTotalDrivers] = React.useState(0);
   const [maintenanceItems, setMaintenanceItems] = React.useState<any[]>([]);
   const [routes, setRoutes] = React.useState<any[]>([]);
   const [chartData, setChartData] = React.useState<any[]>([]);
+  const [overviewStats, setOverviewStats] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const [vResp, dResp, mResp, rResp, cResp] = await Promise.allSettled([
+        const [vResp, dResp, mResp, rResp, cResp, oResp] = await Promise.allSettled([
           vehiclesApi.getAll(),
           driversApi.getAll(),
           maintenanceApi.getAll(),
           routesApi.getAll(),
           dashboardApi.getChartData(),
+          dashboardApi.getOverview(),
         ]);
         if (vResp.status === "fulfilled") {
           const v = vResp.value as any;
           setVehicles(v?.vehicles || (Array.isArray(v) ? v : []));
+          setTotalVehicles(v?.globalStats?.total ?? v?.total ?? (v?.vehicles?.length || v?.length || 0));
         }
         if (dResp.status === "fulfilled") {
           const d = dResp.value as any;
           setDrivers(d?.drivers || (Array.isArray(d) ? d : []));
+          setTotalDrivers(d?.total ?? (d?.drivers?.length || d?.length || 0));
         }
         if (mResp.status === "fulfilled") {
           const m = mResp.value as any;
@@ -53,14 +59,16 @@ export function ManagerDashboard() {
         }
         if (rResp.status === "fulfilled") {
           const r = rResp.value as any;
-          // backend may return { success, data, pagination } or an array
           setRoutes(r?.data || r?.routes || (Array.isArray(r) ? r : []));
         }
         if (cResp.status === "fulfilled") {
           setChartData(cResp.value as any[] || []);
         }
+        if (oResp.status === "fulfilled") {
+          const o = oResp.value as any;
+          setOverviewStats(o.stats || []);
+        }
       } catch (err: any) {
-        // Silently handle errors - fall back to empty data
         console.warn("Dashboard load error:", err.message);
       } finally {
         setLoading(false);
@@ -72,7 +80,8 @@ export function ManagerDashboard() {
   const activeVehicles = vehicles.filter((v: any) => v.status === "active" || v.status === "Active").length;
   const inMaintenance = vehicles.filter((v: any) => v.status === "maintenance" || v.status === "Maintenance").length;
   const activeDrivers = drivers.filter((d: any) => d.status === "Active" || !d.status).length;
-  const pendingMaintenance = maintenanceItems.filter((m: any) => m.status !== "Completed").length;
+  const globalPending = Number(overviewStats.find(s => s.label === "Pending Service")?.value) || 0;
+  const pendingMaintenance = globalPending || maintenanceItems.filter((m: any) => m.status !== "Completed").length;
   const activeRoutes = routes.filter((r: any) => r.status === "active" || r.status === "planned").length;
 
   const vehiclePieData = [
@@ -105,10 +114,10 @@ export function ManagerDashboard() {
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
-          { label: "Total Fleet", value: vehicles.length, icon: Truck, color: "text-blue-600 bg-blue-50", onClick: () => navigate("/app/fleet/vehicles") },
+          { label: "Total Fleet", value: totalVehicles, icon: Truck, color: "text-blue-600 bg-blue-50", onClick: () => navigate("/app/fleet/vehicles") },
           { label: "Active Vehicles", value: activeVehicles, icon: CheckCircle2, color: "text-green-600 bg-green-50", onClick: () => navigate("/app/fleet/vehicles") },
           { label: "In Service", value: inMaintenance, icon: Wrench, color: "text-orange-600 bg-orange-50", onClick: () => navigate("/app/maintenance") },
-          { label: "Active Drivers", value: activeDrivers, icon: Users, color: "text-violet-600 bg-violet-50", onClick: () => navigate("/app/fleet/drivers") },
+          { label: "Active Drivers", value: totalDrivers, icon: Users, color: "text-violet-600 bg-violet-50", onClick: () => navigate("/app/fleet/drivers") },
           { label: "Active Routes", value: activeRoutes, icon: MapPin, color: "text-pink-600 bg-pink-50", onClick: () => navigate("/app/routing") },
         ].map((kpi, i) => (
           <motion.div
@@ -225,22 +234,22 @@ export function ManagerDashboard() {
           {
             icon: Truck, title: "Fleet Vehicles", desc: "View & manage all vehicles in your fleet",
             action: "Manage Fleet", path: "/app/fleet/vehicles",
-            gradient: "from-blue-600 to-indigo-600", stat: `${vehicles.length} total`
+            color: "blue", stat: `${vehicles.length} total`
           },
           {
             icon: Users, title: "Driver Management", desc: "Assign drivers, check licenses & performance",
             action: "Manage Drivers", path: "/app/fleet/drivers",
-            gradient: "from-emerald-600 to-teal-600", stat: `${activeDrivers} active`
+            color: "emerald", stat: `${activeDrivers} active`
           },
           {
             icon: Wrench, title: "Maintenance Queue", desc: "Schedule services & track pending repairs",
             action: "Open Maintenance", path: "/app/maintenance",
-            gradient: "from-orange-500 to-amber-600", stat: `${pendingMaintenance} pending`
+            color: "orange", stat: `${pendingMaintenance} pending`
           },
           {
             icon: Map, title: "Route Operations", desc: "Track vehicles, optimize routes in real-time",
             action: "Open Routing", path: "/app/routing",
-            gradient: "from-violet-600 to-purple-600", stat: `${activeRoutes} active`
+            color: "violet", stat: `${activeRoutes} active`
           },
         ].map((card, i) => (
           <motion.div
@@ -248,15 +257,29 @@ export function ManagerDashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 + i * 0.08 }}
-            className={cn("bg-gradient-to-br text-white p-6 rounded-2xl shadow-lg cursor-pointer hover:scale-[1.02] transition-transform", card.gradient)}
+            className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition-all group"
             onClick={() => { navigate(card.path); toast.info(`Opening ${card.title}...`); }}
           >
-            <card.icon size={28} className="mb-3 opacity-80" />
-            <h4 className="font-bold text-lg mb-1">{card.title}</h4>
-            <p className="text-sm text-white/70 mb-4">{card.desc}</p>
+            <div className={cn(
+              "w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors",
+              card.color === "blue" && "bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white",
+              card.color === "emerald" && "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white",
+              card.color === "orange" && "bg-orange-50 text-orange-600 group-hover:bg-orange-600 group-hover:text-white",
+              card.color === "violet" && "bg-violet-50 text-violet-600 group-hover:bg-violet-600 group-hover:text-white",
+            )}>
+              <card.icon size={24} />
+            </div>
+            <h4 className="font-bold text-gray-900 text-lg mb-1">{card.title}</h4>
+            <p className="text-sm text-gray-500 mb-4">{card.desc}</p>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold bg-white/20 px-3 py-1 rounded-full">{card.stat}</span>
-              <span className="text-sm font-bold flex items-center gap-1">
+              <span className={cn(
+                "text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider",
+                card.color === "blue" && "bg-blue-50 text-blue-600",
+                card.color === "emerald" && "bg-emerald-50 text-emerald-600",
+                card.color === "orange" && "bg-orange-50 text-orange-600",
+                card.color === "violet" && "bg-violet-50 text-violet-600",
+              )}>{card.stat}</span>
+              <span className="text-sm font-bold text-blue-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
                 {card.action} <ArrowUpRight size={14} />
               </span>
             </div>

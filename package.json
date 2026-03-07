@@ -5,6 +5,8 @@
     "dev": "npx concurrently \"npm --prefix backend run dev\" \"npm --prefix 'Frontend Module Breakdown' run dev\"",
     "start": "npm --prefix backend run start",
     "install-all": "npm install && cd backend && npm install && cd ../\"Frontend Module Breakdown\" && npm install",
+    "build-frontend": "cd \"Frontend Module Breakdown\" && npm run build",
+    "build": "npm run install-all && npm run build-frontend",
     "seed": "npm --prefix backend run seed"
   },
   "dependencies": {

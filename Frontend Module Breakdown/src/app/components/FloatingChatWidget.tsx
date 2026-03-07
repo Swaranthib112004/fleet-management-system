@@ -44,7 +44,7 @@ export function FloatingChatWidget() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!input.trim()) return;
 
     // Add user message
@@ -60,60 +60,21 @@ export function FloatingChatWidget() {
     setIsLoading(true);
 
     try {
-      let assistantMsgContent = '';
-      let recommendations = [];
-
-      try {
-        const response = await aiAssistantApi.sendMessage(input);
-
-        // If the backend returns our custom "Connection Failed" warning, trigger fallback
-        if (response.message?.includes('OpenAI Connection Failed') || response.message?.includes('offline mode')) {
-          throw new Error('BACKEND_OFFLINE');
-        }
-
-        assistantMsgContent = response.message;
-        recommendations = response.recommendations || [];
-      } catch (err) {
-        // --- POWERFUL FALLBACK SYSTEM ---
-        const lowerInput = input.toLowerCase();
-
-        // 1. Keyword-based Local Intelligence (Instant backup)
-        if (/\b(hi|hello|hey|greetings)\b/.test(lowerInput)) {
-          assistantMsgContent = "Hello! I am your FleetPro AI Assistant. I can help you manage vehicles, track drivers, or optimize routes. How can I assist you today?";
-        } else if (/\b(vehicle|truck|car|status)\b/.test(lowerInput)) {
-          assistantMsgContent = "I've analyzed your fleet status. Most vehicles are currently active and performing within optimal parameters. You can view detailed telemetry in the Vehicles tab.";
-        } else if (/\b(driver|performance|safety)\b/.test(lowerInput)) {
-          assistantMsgContent = "Driver safety ratings are currently high. We have zero critical alerts today. Would you like me to generate a specific driver performance report?";
-        } else if (/\b(route|trip|map|optimize)\b/.test(lowerInput)) {
-          assistantMsgContent = "Route optimization is active. I recommend checking the 'Routing' page to see the latest fuel-efficient paths I've calculated for your active trips.";
-        } else if (/\b(help|how|can you)\b/.test(lowerInput)) {
-          assistantMsgContent = "I can help with fleet analytics, vehicle maintenance scheduling, driver tracking, and route optimization. Just ask me something like 'How is my fleet doing?'";
-        } else {
-          assistantMsgContent = "I am currently in local backup mode. While I reconnect to the main engine, I can still help with general fleet inquiries.";
-        }
-
-        if (lowerInput.includes('recommend')) {
-          recommendations = [
-            { text: "Review fuel efficiency for optimized routes", type: "suggestion" },
-            { text: "Schedule maintenance for high-mileage vehicles", type: "maintenance" }
-          ];
-        }
-      }
-
+      const response = await aiAssistantApi.sendMessage(input);
+      
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: assistantMsgContent,
-        recommendations: recommendations,
+        content: response.message,
+        recommendations: response.recommendations,
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, assistantMessage]);
 
       // Show recommendations as toast if any
-      const recs = recommendations || [];
-      if (recs.length > 0) {
-        recs.forEach((rec: any) => {
+      if (response.recommendations?.length > 0) {
+        response.recommendations.forEach((rec: any) => {
           if (typeof rec === 'string') {
             toast.info(rec);
           } else if (rec.text) {
@@ -123,7 +84,7 @@ export function FloatingChatWidget() {
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to get response');
-
+      
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',

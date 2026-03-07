@@ -20,13 +20,17 @@ exports.getMaintenances = async (req, res, next) => {
     if (status) filter.status = status;
     if (search) {
       filter.$or = [
+        { vehicle: { $regex: search, $options: 'i' } },
         { type: { $regex: search, $options: 'i' } },
         { notes: { $regex: search, $options: 'i' } }
       ];
     }
 
     const total = await Maintenance.countDocuments(filter);
-    const items = await Maintenance.find(filter).skip((page - 1) * limit).limit(limit).sort({ performedAt: -1 });
+    const items = await Maintenance.find(filter)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .sort({ createdAt: -1 });
     res.json({ total, page, pages: Math.ceil(total / limit), items });
   } catch (err) { next(err); }
 };

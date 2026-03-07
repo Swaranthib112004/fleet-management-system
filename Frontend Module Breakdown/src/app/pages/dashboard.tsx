@@ -78,8 +78,8 @@ export function Dashboard() {
       setLoadingData(true);
       try {
         const [vResp, dResp, mResp, overview, chart, acts] = await Promise.all([
-          vehiclesApi.getAll(),
-          driversApi.getAll(),
+          vehiclesApi.getAll({ limit: 100 }), // Fetch more for local filtering if needed
+          driversApi.getAll({ limit: 100 }),
           maintenanceApi.getAll(),
           dashboardApi.getOverview(),
           dashboardApi.getChartData(),
@@ -318,35 +318,35 @@ export function Dashboard() {
           </div>
 
           {/* Predictive Dashboard Snippet */}
-          <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-8 rounded-[2rem] text-white overflow-hidden relative">
-            <div className="absolute top-0 right-0 p-8 opacity-10">
-              <Activity size={120} />
+          <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden relative">
+            <div className="absolute top-0 right-0 p-8 opacity-[0.03]">
+              <Activity size={120} className="text-gray-900" />
             </div>
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                  <AlertTriangle size={20} className="text-amber-400" />
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                  <AlertTriangle size={20} className="text-indigo-600" />
                 </div>
-                <h3 className="text-xl font-bold">Predictive Alerts</h3>
+                <h3 className="text-xl font-bold text-gray-900">Predictive Alerts</h3>
               </div>
               <div className="grid md:grid-cols-2 gap-6">
-                <div className="bg-white/5 border border-white/10 p-5 rounded-2xl backdrop-blur-md">
-                  <p className="text-indigo-200 text-sm font-medium mb-1">Upcoming Service</p>
-                  <p className="text-2xl font-bold mb-4">{maintenance.filter((m) => m.status === "Scheduled").length} Vehicles</p>
-                  <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                    <div className="bg-amber-400 h-full w-[85%] rounded-full" />
+                <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl">
+                  <p className="text-indigo-600 text-sm font-bold uppercase tracking-wider mb-1">Upcoming Service</p>
+                  <p className="text-2xl font-extrabold text-gray-900 mb-4">{maintenance.filter((m) => m.status === "Scheduled").length} Vehicles</p>
+                  <div className="w-full bg-indigo-100 h-2 rounded-full overflow-hidden">
+                    <div className="bg-amber-500 h-full w-[85%] rounded-full" />
                   </div>
-                  <p className="text-xs text-indigo-300 mt-2 font-medium">Confidence Score: 85%</p>
+                  <p className="text-xs text-indigo-500 mt-2 font-bold uppercase tracking-tighter">Confidence Score: 85%</p>
                 </div>
-                <div className="bg-white/5 border border-white/10 p-5 rounded-2xl backdrop-blur-md">
-                  <p className="text-indigo-200 text-sm font-medium mb-1">Brake Wear Risk</p>
-                  <p className="text-2xl font-bold mb-4">TR-9902 Alert</p>
+                <div className="bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl">
+                  <p className="text-indigo-600 text-sm font-bold uppercase tracking-wider mb-1">Brake Wear Risk</p>
+                  <p className="text-2xl font-extrabold text-gray-900 mb-4">TR-9902 Alert</p>
                   <button
                     onClick={() => {
                       navigate("/app/maintenance");
                       toast.info("Redirecting to maintenance...");
                     }}
-                    className="text-sm font-bold text-indigo-300 hover:text-white transition-colors flex items-center gap-1 group"
+                    className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1 group"
                   >
                     Schedule Maintenance <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                   </button>

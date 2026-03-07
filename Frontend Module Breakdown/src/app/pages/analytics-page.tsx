@@ -317,39 +317,39 @@ export function AnalyticsPage() {
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
                transition={{ delay: 0.8 }}
-               className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-[2rem] text-white shadow-xl shadow-blue-200 cursor-pointer hover:shadow-2xl transition-shadow"
+               className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition-all group"
                onClick={() => { navigate("/app/fleet/vehicles"); toast.info("Opening vehicles..."); }}
             >
-               <Truck size={28} className="mb-3 opacity-60" />
-               <h3 className="font-bold text-lg mb-1">Fleet Summary</h3>
-               <p className="text-blue-100 text-sm mb-4">{fleet.totalVehicles || 0} vehicles total, {fleet.activeVehicles || 0} active</p>
-               <span className="text-sm font-bold flex items-center gap-1">Manage Fleet <ArrowUpRight size={14} /></span>
+               <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4"><Truck size={24} /></div>
+               <h3 className="font-bold text-gray-900 text-lg mb-1">Fleet Summary</h3>
+               <p className="text-gray-500 text-sm mb-4">{fleet.totalVehicles || 0} vehicles total, {fleet.activeVehicles || 0} active</p>
+               <span className="text-sm font-bold text-blue-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">Manage Fleet <ArrowUpRight size={14} /></span>
             </motion.div>
 
             <motion.div
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
                transition={{ delay: 0.85 }}
-               className="bg-gradient-to-br from-emerald-600 to-teal-700 p-6 rounded-[2rem] text-white shadow-xl shadow-emerald-200 cursor-pointer hover:shadow-2xl transition-shadow"
+               className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition-all group"
                onClick={() => { navigate("/app/fleet/drivers"); toast.info("Opening drivers..."); }}
             >
-               <Users size={28} className="mb-3 opacity-60" />
-               <h3 className="font-bold text-lg mb-1">Driver Summary</h3>
-               <p className="text-emerald-100 text-sm mb-4">{drivers.totalDrivers || 0} drivers, {drivers.activeDrivers || 0} active</p>
-               <span className="text-sm font-bold flex items-center gap-1">Manage Drivers <ArrowUpRight size={14} /></span>
+               <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4"><Users size={24} /></div>
+               <h3 className="font-bold text-gray-900 text-lg mb-1">Driver Summary</h3>
+               <p className="text-gray-500 text-sm mb-4">{drivers.totalDrivers || 0} drivers, {drivers.activeDrivers || 0} active</p>
+               <span className="text-sm font-bold text-emerald-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">Manage Drivers <ArrowUpRight size={14} /></span>
             </motion.div>
 
             <motion.div
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
                transition={{ delay: 0.9 }}
-               className="bg-gradient-to-br from-orange-500 to-amber-600 p-6 rounded-[2rem] text-white shadow-xl shadow-orange-200 cursor-pointer hover:shadow-2xl transition-shadow"
+               className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition-all group"
                onClick={() => { navigate("/app/maintenance"); toast.info("Opening maintenance..."); }}
             >
-               <Wrench size={28} className="mb-3 opacity-60" />
-               <h3 className="font-bold text-lg mb-1">Maintenance Summary</h3>
-               <p className="text-orange-100 text-sm mb-4">{maintenance.total || 0} records, ₹{(maintenance.totalCost || 0).toLocaleString()} total cost</p>
-               <span className="text-sm font-bold flex items-center gap-1">View Maintenance <ArrowUpRight size={14} /></span>
+               <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center mb-4"><Wrench size={24} /></div>
+               <h3 className="font-bold text-gray-900 text-lg mb-1">Maintenance Summary</h3>
+               <p className="text-gray-500 text-sm mb-4">{maintenance.total || 0} records, ₹{(maintenance.totalCost || 0).toLocaleString()} total cost</p>
+               <span className="text-sm font-bold text-orange-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">View Maintenance <ArrowUpRight size={14} /></span>
             </motion.div>
          </div>
       </div>

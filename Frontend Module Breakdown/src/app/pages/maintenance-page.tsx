@@ -61,6 +61,7 @@ export function MaintenancePage() {
             await maintenanceApi.create(formData);
             toast.success("Maintenance log added");
          }
+         setCurrentPage(1);
          await reloadLogs();
       } catch (err: any) {
          toast.error(err.message || "Operation failed");
@@ -329,23 +330,52 @@ export function MaintenancePage() {
                      </div>
                   )}
                </div>
+
+               {/* Pagination */}
+               <div className="p-6 border-t border-gray-50 flex justify-between items-center bg-gray-50/20">
+                  <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">
+                     Showing {logs.length} of {totalCount} logs
+                  </p>
+                  <div className="flex items-center gap-2">
+                     <button
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-white transition-all disabled:text-gray-400 disabled:cursor-not-allowed"
+                     >
+                        Previous
+                     </button>
+                     <span className="text-sm font-bold text-gray-500 px-2">{currentPage} / {totalPages}</span>
+                     <button
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-white transition-all disabled:text-gray-400 disabled:cursor-not-allowed"
+                     >
+                        Next
+                     </button>
+                  </div>
+               </div>
             </div>
 
             <div className="space-y-8">
-               <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2.5rem] text-white shadow-xl shadow-blue-200">
-                  <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center mb-6"><AlertTriangle size={24} /></div>
-                  <h3 className="text-2xl font-bold mb-2">{reminders.length} Due Reminders</h3>
-                  <p className="text-blue-100 font-medium mb-8 leading-relaxed">Insurance renewals and safety inspections are pending for the West Fleet.</p>
-                  <div className="space-y-4">
-                     {reminders.map((r, i) => (
-                        <div key={i} className="flex items-center justify-between p-4 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-md">
-                           <div>
-                              <p className="font-bold text-sm leading-none mb-1">{r.title}</p>
-                              <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest">{r.vehicle}</p>
+               <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden relative">
+                  <div className="absolute top-0 right-0 p-6 opacity-[0.03]">
+                     <AlertTriangle size={140} className="text-blue-600" />
+                  </div>
+                  <div className="relative z-10">
+                     <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-6"><AlertTriangle size={24} /></div>
+                     <h3 className="text-2xl font-bold mb-2 text-gray-900">{reminders.length} Due Reminders</h3>
+                     <p className="text-gray-500 font-medium mb-8 leading-relaxed">Insurance renewals and safety inspections are pending for the West Fleet.</p>
+                     <div className="space-y-4">
+                        {reminders.map((r, i) => (
+                           <div key={i} className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                              <div>
+                                 <p className="font-bold text-sm leading-none mb-1 text-gray-900">{r.title}</p>
+                                 <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{r.vehicle}</p>
+                              </div>
+                              <span className={cn("text-xs font-bold px-3 py-1 rounded-full", r.critical ? "bg-red-500 text-white" : "bg-blue-100 text-blue-600")}>{r.date}</span>
                            </div>
-                           <span className={cn("text-xs font-bold px-3 py-1 rounded-full bg-white/20", r.critical && "bg-red-500")}>{r.date}</span>
-                        </div>
-                     ))}
+                        ))}
+                     </div>
                   </div>
                </div>
 

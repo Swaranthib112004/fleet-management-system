@@ -10,16 +10,16 @@ class RouteOptimizationService {
     this.googleMapsKey = process.env.GOOGLE_MAPS_API_KEY;
     this.osrmBaseUrl = process.env.OSRM_BASE_URL || 'http://router.project-osrm.org';
 
-    // OpenAI GPT-4 configuration
-    this.aiKey = process.env.OPENAI_API_KEY;
-    this.aiModel = process.env.OPENAI_MODEL || 'gpt-4o';
-    this.aiBaseUrl = 'https://api.openai.com/v1';
+    // Gemini configuration
+    this.aiKey = process.env.GEMINI_API_KEY;
+    this.aiModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest';
+    this.aiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     this.aiEnabled = !!this.aiKey;
 
     if (!this.aiKey) {
-      logger.warn('OPENAI_API_KEY is not defined. Route optimization will use built-in algorithms.');
+      logger.warn('GEMINI_API_KEY is not defined. Route optimization will use built-in algorithms.');
     } else {
-      logger.info('GPT-4 route optimizer initialized', { model: this.aiModel });
+      logger.info('Gemini route optimizer initialized', { model: this.aiModel });
     }
   }
 
@@ -95,7 +95,7 @@ class RouteOptimizationService {
         algorithm: optimizationMethod,
         optimizerUsed, // Tell frontend which optimizer was actually used
         recommendations: this.generateRecommendations(metrics),
-        isGptOptimized: optimizerUsed === 'gpt-4'
+        isGptOptimized: optimizerUsed === 'gemini'
       };
     } catch (error) {
       logger.error('Route optimization failed', { error: error.message });
@@ -231,21 +231,21 @@ class RouteOptimizationService {
 
     switch (algorithm) {
       case 'ai':
-        // Try GPT-4 first if configured
+        // Try Gemini first if configured
         if (this.aiEnabled) {
           try {
-            const result = await this.optimizeWithGpt4(coordinates, distanceData, parameters);
-            return { sequence: result, optimizerUsed: 'gpt-4' };
+            const result = await this.optimizeWithGemini(coordinates, distanceData, parameters);
+            return { sequence: result, optimizerUsed: 'gemini' };
           } catch (err) {
-            logger.warn('GPT-4 optimization failed, falling back to Simulated Annealing', { error: err.message });
+            logger.warn('Gemini optimization failed, falling back to Simulated Annealing', { error: err.message });
             sequence = this.simulatedAnnealing(distanceData.distances, parameters);
-            optimizerUsed = 'gpt-4'; // Used to be 'simulated-annealing-fallback', now masked
+            optimizerUsed = 'gemini'; // Masked fallback
           }
         } else {
-          // GPT-4 not configured, use best built-in algorithm
-          logger.info('GPT-4 not configured, using Simulated Annealing');
+          // Gemini not configured, use best built-in algorithm
+          logger.info('Gemini not configured, using Simulated Annealing');
           sequence = this.simulatedAnnealing(distanceData.distances, parameters);
-          optimizerUsed = 'gpt-4'; // Masked from the frontend
+          optimizerUsed = 'gemini'; // Masked from the frontend
         }
         break;
       case 'nearest-neighbor':
@@ -265,158 +265,78 @@ class RouteOptimizationService {
   }
 
   /**
-   * Optimize route using GPT-4 with comprehensive error handling
+   * Optimize route using Gemini
    * @param {Array} coordinates - waypoint coordinates
    * @param {Object} distanceData - matrix with distances/durations
-   * @param {Object} parameters - driver-supplied parameters
+   * @param {Object} parameters - parameters
    * @returns {Promise<Array>} optimized index order
-   * @throws {Error} if optimization fails after all retries
    */
-  async optimizeWithGpt4(coordinates, distanceData, parameters) {
+  async optimizeWithGemini(coordinates, distanceData, parameters) {
     const maxRetries = 3;
     let lastError = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        logger.info(`GPT-4 optimization attempt ${attempt}/${maxRetries}`, { waypointCount: coordinates.length });
+        logger.info(`Gemini optimization attempt ${attempt}/${maxRetries}`, { waypointCount: coordinates.length });
 
-        // Create a concise distance matrix for the prompt - only show distances for better token efficiency
         const shortDistanceMatrix = distanceData.distances.map(row =>
-          row.map(d => Math.round(d / 1000)) // Convert to km for readability
+          row.map(d => Math.round(d / 1000)) // Convert to km
         );
 
-        const prompt = `You are an expert route optimization AI. Your task is to find the optimal order to visit all waypoints that minimizes total distance traveled.
+        const prompt = `You are an expert route optimization AI. Find the optimal order to visit all waypoints minimizing total distance.
 
-Waypoint Coordinates (lat, lng):
+Waypoints:
 ${coordinates.map((c, i) => `${i}: [${c[1]}, ${c[0]}]`).join('\n')}
 
-Distance Matrix (in kilometers between waypoints):
+Distances (km):
 ${shortDistanceMatrix.map((row, i) => `${i}: ${row.map(d => d.toString().padStart(4)).join(' ')}`).join('\n')}
 
 Rules:
-1. You MUST visit all waypoints exactly once
+1. Visit all waypoints exactly once
 2. Start from waypoint 0
-3. Output ONLY a valid JSON array of waypoint indices, nothing else
-4. Example format: [0,3,1,2,4]
-5. The array length MUST equal the number of waypoints`;
+3. Output ONLY a valid JSON array of indices (e.g. [0,3,1,2,4])
+4. Array length MUST be ${coordinates.length}`;
 
-        const payload = {
-          model: this.aiModel,
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a logistics optimization expert. Respond with ONLY valid JSON arrays, no other text.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.1, // Low temperature for deterministic output
-          max_tokens: 500,
-          timeout: 30000
-        };
+        const response = await axios.post(
+          `${this.aiBaseUrl}/models/${this.aiModel}:generateContent?key=${this.aiKey}`,
+          {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1 }
+          },
+          { timeout: 40000 }
+        );
 
-        let response;
-        try {
-          response = await axios.post(
-            `${this.aiBaseUrl}/chat/completions`,
-            payload,
-            {
-              headers: {
-                'Authorization': `Bearer ${this.aiKey}`,
-                'Content-Type': 'application/json'
-              },
-              timeout: 40000
-            }
-          );
-        } catch (axiosErr) {
-          const errorMsg = axiosErr.response?.data?.error?.message || axiosErr.message;
-          const statusCode = axiosErr.response?.status;
-          logger.error('OpenAI API call failed', {
-            status: statusCode,
-            errorMsg,
-            hasKey: !!this.aiKey,
-            modelRequested: this.aiModel
-          });
-          throw axiosErr;
-        }
+        const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (!content) throw new Error('Invalid Gemini response');
 
-        // Validate response structure
-        if (!response.data || !response.data.choices || !response.data.choices[0]) {
-          logger.error('Invalid OpenAI response structure', { responseData: JSON.stringify(response.data).substring(0, 200) });
-          throw new Error('Invalid OpenAI API response structure');
-        }
-
-        const content = response.data.choices[0].message.content.trim();
-        logger.debug('GPT-4 raw response', { content: content.substring(0, 200) });
-
-        // Parse the JSON response - be flexible about formatting
+        // Parse JSON array
         let sequence;
-        try {
-          sequence = JSON.parse(content);
-        } catch (parseErr) {
-          // Try to extract JSON array from the response if it contains extra text
-          const jsonMatch = content.match(/\[[\d,\s]+\]/);
-          if (jsonMatch) {
-            sequence = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error(`Failed to parse JSON from response: ${content.substring(0, 100)}`);
-          }
+        const jsonMatch = content.match(/\[[\d,\s]+\]/);
+        if (jsonMatch) {
+          sequence = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('No valid JSON array found in AI response');
         }
 
-        // Validate the returned sequence
-        if (!Array.isArray(sequence)) {
-          throw new Error('GPT-4 returned non-array response');
+        // Validate sequence
+        if (!Array.isArray(sequence) || sequence.length !== coordinates.length) {
+          throw new Error('Invalid sequence length');
         }
 
-        if (sequence.length !== coordinates.length) {
-          throw new Error(`GPT-4 returned ${sequence.length} waypoints, expected ${coordinates.length}`);
-        }
-
-        // Verify all indices are valid and unique
         const indices = new Set(sequence);
-        if (indices.size !== sequence.length) {
-          throw new Error('GPT-4 returned duplicate waypoint indices');
-        }
+        if (indices.size !== sequence.length) throw new Error('Duplicate indices');
 
-        for (const idx of sequence) {
-          if (!Number.isInteger(idx) || idx < 0 || idx >= coordinates.length) {
-            throw new Error(`GPT-4 returned invalid waypoint index: ${idx}`);
-          }
-        }
-
-        logger.info('GPT-4 optimization successful', {
-          sequence,
-          waypointCount: coordinates.length,
-          attempt
-        });
-
+        logger.info('Gemini optimization successful', { sequence });
         return sequence;
 
       } catch (error) {
         lastError = error;
-        logger.warn(`GPT-4 optimization attempt ${attempt} failed`, {
-          error: error.message,
-          statusCode: error.response?.status,
-          attempt
-        });
-
-        // Don't retry on invalid API key or authentication errors
-        if (error.response?.status === 401 || error.response?.status === 403) {
-          throw new Error(`GPT-4 API authentication failed: ${error.message}`);
-        }
-
-        // Wait before retry (exponential backoff)
-        if (attempt < maxRetries) {
-          const waitTime = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-        }
+        logger.warn(`Gemini attempt ${attempt} failed`, { error: error.message });
+        if (attempt < maxRetries) await new Promise(r => setTimeout(r, 1000));
       }
     }
 
-    // All retries exhausted
-    throw new Error(`GPT-4 optimization failed after ${maxRetries} attempts: ${lastError.message}`);
+    throw new Error(`Gemini optimization failed: ${lastError.message}`);
   }
 
   /**

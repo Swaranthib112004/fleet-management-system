@@ -37,7 +37,7 @@ FleetPro isn't just a tool; it's a **premium experience**.
 - **Auth**: [Passport.js](https://www.passportjs.org/) (Google OAuth 2.0)
 
 ### AI Intelligence
-- **OpenAI GPT-4**: Powers the interactive **AI Assistant** and the **Route Optimization Engine**, providing predictive insights and natural language fleet queries.
+- **Google Gemini 1.5**: Powers the interactive **AI Assistant** and the **Route Optimization Engine**, providing predictive insights and natural language fleet queries.
 
 ---
 
@@ -56,7 +56,7 @@ FleetPro isn't just a tool; it's a **premium experience**.
 ## 🏗️ Architecture: How it Works
 
 1.  **Data Ingestion**: Vehicles and devices report telemetry (GPS, status) to the Express backend via REST and WebSockets.
-2.  **AI Processing**: The system feeds fleet context into OpenAI GPT-4 to generate optimization strategies and maintenance alerts.
+2.  **AI Processing**: The system feeds fleet context into Google Gemini to generate optimization strategies and maintenance alerts.
 3.  **Real-Time Sync**: Changes in vehicle status or new assignments are pushed instantly to the frontend using Socket.io.
 4.  **Role Access**: Passport.js and JWT ensure that users only see the data relevant to their authorized role.
 
@@ -76,7 +76,7 @@ FleetPro isn't just a tool; it's a **premium experience**.
 ### Prerequisites
 - Node.js (v18+)
 - MongoDB (Running locally or via Atlas)
-- OpenAI API Key
+- Google Gemini API Key
 
 
 ## 🎨 Tools Used

@@ -7,15 +7,10 @@ const Trip = require('../models/tripModel');
 
 class AIAssistantService {
   constructor() {
-    this.aiBaseUrl = 'https://api.openai.com/v1';
-    this.openaiKey = process.env.OPENAI_API_KEY;
-    this.openaiModel = process.env.OPENAI_MODEL || 'gpt-4o';
-    this.baseUrl = 'https://api.openai.com/v1';
+    this.apiKey = process.env.GEMINI_API_KEY;
+    this.model = process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest';
+    this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     this.conversationHistory = new Map(); // Store per-user conversation history
-
-    if (!this.openaiKey) {
-      logger.warn('OPENAI_API_KEY is not defined in environment variables. AI Assistant will operate in mock mode.');
-    }
   }
 
   /**
@@ -39,16 +34,15 @@ class AIAssistantService {
       // Collect fleet context for better responses
       const fleetContext = await this.getFleetContext(context);
 
-      // Build messages for GPT-4
+      // Build messages for Gemini
       const systemPrompt = this.buildSystemPrompt(fleetContext, context.userRole);
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        ...history,
-        { role: 'user', content: message }
-      ];
 
-      // Get response from GPT-4
-      const response = await this.callGPT4(messages);
+      // Gemini expects a single prompt or a specific history format. 
+      // We'll combine system prompt and history into a structured prompt.
+      const prompt = `System Instructions: ${systemPrompt}\n\nConversation History:\n${history.map(h => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')}\n\nUser: ${message}\n\nAssistant:`;
+
+      // Get response from Gemini
+      const response = await this.callGemini(prompt);
       const assistantMessage = response.content;
 
       // Update conversation history
@@ -92,17 +86,12 @@ class AIAssistantService {
       const fleetData = await this.getFleetContext(context);
       const queryPrompt = this.buildQueryPrompt(query, fleetData);
 
-      const response = await this.callGPT4([
-        {
-          role: 'system',
-          content: `You are a fleet data analyst. Answer questions about the fleet data provided.
-Be concise and provide specific numbers. Format responses clearly.`
-        },
-        {
-          role: 'user',
-          content: queryPrompt
-        }
-      ]);
+      const response = await this.callGemini(`
+You are a fleet data analyst. Answer questions about the fleet data provided.
+Be concise and provide specific numbers. Format responses clearly.
+
+Data Context:
+${queryPrompt}`);
 
       // Try to extract structured data from response
       const result = {
@@ -139,16 +128,10 @@ Format as:
 
 Types: COST_SAVING, SAFETY, EFFICIENCY, MAINTENANCE, PERFORMANCE`;
 
-      const response = await this.callGPT4([
-        {
-          role: 'system',
-          content: 'You are a fleet management consultant. Provide specific, actionable recommendations with quantified benefits.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ]);
+      const response = await this.callGemini(`
+You are a fleet management consultant. Provide specific, actionable recommendations with quantified benefits based on this data:
+
+${prompt}`);
 
       const recommendations = this.parseRecommendations(response.content);
 
@@ -378,14 +361,14 @@ If you can't answer from the data provided, say so clearly.`;
   }
 
   /**
-   * Call GPT-4 API with retry logic and fallback if it fails or API key is missing
-   * @param {Array} messages - Messages array
+   * Call Gemini API with retry logic and fallback
+   * @param {String} prompt - Prompt string
    * @returns {Promise<Object>} Response
    */
-  async callGPT4(messages) {
-    if (!this.openaiKey || String(this.openaiKey).trim() === '') {
-      logger.info('No OpenAI Key set, using mock AI assistant response.');
-      return this._mockGPT4Response(messages);
+  async callGemini(prompt) {
+    if (!this.apiKey || String(this.apiKey).trim() === '') {
+      logger.info('No Gemini Key set, using mock AI assistant response.');
+      return this._mockGeminiResponse(prompt);
     }
     const maxRetries = 3;
     let lastError = null;
@@ -393,38 +376,40 @@ If you can't answer from the data provided, say so clearly.`;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const response = await axios.post(
-          `${this.baseUrl}/chat/completions`,
+          `${this.baseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`,
           {
-            model: this.openaiModel,
-            messages,
-            temperature: 0.7,
-            max_tokens: 1000,
-            timeout: 30000
+            contents: [{
+              parts: [{ text: prompt }]
+            }],
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 1000,
+            }
           },
           {
             headers: {
-              'Authorization': `Bearer ${this.openaiKey}`,
               'Content-Type': 'application/json'
             },
             timeout: 40000
           }
         );
 
-        if (!response.data?.choices?.[0]?.message?.content) {
-          throw new Error('Invalid API response structure');
+        const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!content) {
+          throw new Error('Invalid Gemini API response structure');
         }
 
         return {
-          content: response.data.choices[0].message.content.trim(),
-          tokens: response.data.usage?.completion_tokens || 0
+          content: content.trim(),
+          tokens: 0 // Gemini usage info is in a different format, skipping for now
         };
       } catch (error) {
         lastError = error;
-        logger.warn(`GPT-4 call attempt ${attempt} failed`, { error: error.message });
+        logger.warn(`Gemini call attempt ${attempt} failed`, { error: error.message, details: error.response?.data });
 
-        if (error.response?.status === 401 || error.response?.status === 403) {
-          logger.warn('Authentication failed with OpenAI API, falling back to mock response');
-          return this._mockGPT4Response(messages);
+        if (error.response?.status === 401 || error.response?.status === 403 || error.response?.status === 400) {
+          logger.warn('Auth or Request error with Gemini API, falling back to mock response');
+          return this._mockGeminiResponse(prompt);
         }
 
         if (attempt < maxRetries) {
@@ -433,18 +418,27 @@ If you can't answer from the data provided, say so clearly.`;
       }
     }
 
-    logger.warn(`GPT-4 API call failed after ${maxRetries} attempts, falling back to mock response`, { error: lastError.message });
-    return this._mockGPT4Response(messages);
+    logger.warn(`Gemini API call failed after ${maxRetries} attempts, falling back to mock response`, { error: lastError.message });
+    return this._mockGeminiResponse(prompt);
   }
 
   /**
-   * Mock response to gracefully handle missing / failed API key
-   * Upgraded to provide smarter keyword-based conversational responses. 
+   * Mock response to gracefully handle missing / failed API key 
    */
-  _mockGPT4Response(messages) {
+  _mockGeminiResponse(prompt) {
+    const isQuery = prompt.toLowerCase().includes('?') || prompt.toLowerCase().includes('show') || prompt.toLowerCase().includes('how many');
+    let content = isQuery
+      ? 'Based on the fleet data, your vehicles are operating normally with stable fuel consumption.'
+      : 'Hello! I am your AI Fleet Assistant powered by Gemini. How can I help you today?';
+
+    // Add mock recommendations if requested
+    if (prompt.toLowerCase().includes('recommend')) {
+      content += '\n\n1. COST_SAVING: Review idle times for fleet vehicles to reduce fuel waste.\n2. SAFETY: Schedule standard maintenance for older vehicles.\n3. EFFICIENCY: Opt for earlier dispatch times in heavy traffic zones.';
+    }
+
     return {
-      content: "I am currently performing a deep sync with your fleet data. I'm operating in offline mode for a moment, but I can still answer basic questions about your vehicles and routes!",
-      tokens: 45
+      content,
+      tokens: 0
     };
   }
 

@@ -1,0 +1,11 @@
+error: pathspec 'switch' did not match any file(s) known to git
+error: pathspec 'AI' did not match any file(s) known to git
+error: pathspec 'engine' did not match any file(s) known to git
+error: pathspec 'to' did not match any file(s) known to git
+error: pathspec 'Google' did not match any file(s) known to git
+error: pathspec 'Gemini' did not match any file(s) known to git
+error: pathspec 'and' did not match any file(s) known to git
+error: pathspec 'clean' did not match any file(s) known to git
+error: pathspec 'project' did not match any file(s) known to git
+error: pathspec 'for' did not match any file(s) known to git
+error: pathspec 'deployment'' did not match any file(s) known to git

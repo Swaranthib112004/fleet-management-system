@@ -44,9 +44,12 @@ export const vehiclesApi = {
         ) : {};
         const query = Object.keys(cleanParams).length > 0 ? "?" + new URLSearchParams(cleanParams).toString() : "";
         const res: any = await request(`/api/vehicles${query}`);
-        if (Array.isArray(res)) return normalizeId(res);
-        if (res.vehicles) res.vehicles = normalizeId(res.vehicles);
-        return res;
+        // If it's a paginated response, normalize IDs in the vehicles array
+        if (res.vehicles) {
+            res.vehicles = normalizeId(res.vehicles);
+            return res;
+        }
+        return normalizeId(res);
     },
     getById: async (id: string): Promise<Vehicle> => {
         const res = await request(`/api/vehicles/${id}`);
@@ -99,14 +102,14 @@ export const driversApi = {
 // MAINTENANCE
 // =====================
 export const maintenanceApi = {
-    getAll: async (params?: Record<string, any>): Promise<MaintenanceLog[]> => {
+    getAll: async (params?: Record<string, any>): Promise<any> => {
         // Filter out undefined and null values to avoid sending "undefined" strings
         const cleanParams = params ? Object.fromEntries(
             Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
         ) : {};
         const query = Object.keys(cleanParams).length > 0 ? "?" + new URLSearchParams(cleanParams).toString() : "";
         const res: any = await request(`/api/maintenance${query}`);
-        if (Array.isArray(res)) return normalizeId(res);
+        // Return full response for pagination support, normalize IDs inside items/maintenance
         if (res.items) res.items = normalizeId(res.items);
         if (res.maintenance) res.maintenance = normalizeId(res.maintenance);
         return res;

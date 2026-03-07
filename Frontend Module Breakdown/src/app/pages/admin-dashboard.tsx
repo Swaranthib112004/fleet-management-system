@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./../lib/auth";
-import { vehiclesApi, driversApi, maintenanceApi, routesApi, auditApi } from "../lib/api";
+import { vehiclesApi, driversApi, maintenanceApi, routesApi, auditApi, dashboardApi } from "../lib/api";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import {
@@ -20,26 +20,30 @@ export function AdminDashboard() {
   const [maintenanceItems, setMaintenanceItems] = React.useState<any[]>([]);
   const [routes, setRoutes] = React.useState<any[]>([]);
   const [auditLogs, setAuditLogs] = React.useState<any[]>([]);
+  const [overviewStats, setOverviewStats] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const [vResp, dResp, mResp, rResp, aResp] = await Promise.allSettled([
+        const [vResp, dResp, mResp, rResp, aResp, oResp] = await Promise.allSettled([
           vehiclesApi.getAll(),
           driversApi.getAll(),
           maintenanceApi.getAll(),
           routesApi.getAll(),
           auditApi.getAll(),
+          dashboardApi.getOverview(),
         ]);
+
         if (vResp.status === "fulfilled") {
           const v = vResp.value as any;
-          setVehicleCount(v?.vehicles?.length ?? v?.length ?? 0);
+          // Use global total if available, else count results
+          setVehicleCount(v?.globalStats?.total ?? v?.total ?? v?.vehicles?.length ?? v?.length ?? 0);
         }
         if (dResp.status === "fulfilled") {
           const d = dResp.value as any;
-          setDriverCount(d?.drivers?.length ?? d?.length ?? 0);
+          setDriverCount(d?.total ?? d?.drivers?.length ?? d?.length ?? 0);
         }
         if (mResp.status === "fulfilled") {
           const m = mResp.value as any;
@@ -47,15 +51,17 @@ export function AdminDashboard() {
         }
         if (rResp.status === "fulfilled") {
           const r = rResp.value as any;
-          // backend may return { success, data, pagination } or an array
           setRoutes(r?.data || r?.routes || (Array.isArray(r) ? r : []));
         }
         if (aResp.status === "fulfilled") {
           const a = aResp.value as any;
           setAuditLogs(Array.isArray(a) ? a.slice(0, 8) : []);
         }
+        if (oResp.status === "fulfilled") {
+          const o = oResp.value as any;
+          setOverviewStats(o.stats || []);
+        }
       } catch (err: any) {
-        // Silently handle errors - fall back to empty data
         console.warn("Admin dashboard load error:", err.message);
       } finally {
         setLoading(false);
@@ -147,37 +153,57 @@ export function AdminDashboard() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[2rem] text-white overflow-hidden relative"
+          className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden relative"
         >
-          <div className="absolute top-0 right-0 p-6 opacity-5">
-            <Server size={140} />
+          <div className="absolute top-0 right-0 p-6 opacity-[0.03]">
+            <Server size={140} className="text-gray-900" />
           </div>
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                <Database size={20} className="text-green-400" />
+              <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+                <Database size={20} className="text-green-600" />
               </div>
-              <h3 className="text-lg font-bold">System Health</h3>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30">
+              <h3 className="text-lg font-bold text-gray-900">System Health</h3>
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-50 text-green-600 border border-green-100">
                 All Systems Go
               </span>
             </div>
             <div className="grid grid-cols-2 gap-4">
               {[
-                { label: "Vehicles", value: vehicleCount, icon: Truck, status: "Active" },
-                { label: "Drivers", value: driverCount, icon: Users, status: "Online" },
-                { label: "Pending Jobs", value: pendingMaintenance, icon: Wrench, status: pendingMaintenance > 0 ? "Action Needed" : "Clear" },
-                { label: "Active Routes", value: activeRoutes, icon: Map, status: "Tracking" },
+                {
+                  label: "Vehicles",
+                  value: overviewStats.find(s => s.label === "Total Vehicles")?.value ?? vehicleCount,
+                  icon: Truck,
+                  status: "Active"
+                },
+                {
+                  label: "Drivers",
+                  value: overviewStats.find(s => s.label === "Active Drivers")?.value ?? driverCount,
+                  icon: Users,
+                  status: "Online"
+                },
+                {
+                  label: "Pending Jobs",
+                  value: overviewStats.find(s => s.label === "Pending Service")?.value ?? pendingMaintenance,
+                  icon: Wrench,
+                  status: (Number(overviewStats.find(s => s.label === "Pending Service")?.value) || pendingMaintenance) > 0 ? "Action Needed" : "Clear"
+                },
+                {
+                  label: "Active Routes",
+                  value: overviewStats.find(s => s.label === "Active Routes")?.value ?? activeRoutes,
+                  icon: Map,
+                  status: "Tracking"
+                },
               ].map((item) => (
-                <div key={item.label} className="bg-white/5 border border-white/10 p-4 rounded-xl backdrop-blur-sm">
+                <div key={item.label} className="bg-gray-50 border border-gray-100 p-4 rounded-xl">
                   <div className="flex items-center gap-2 mb-2">
-                    <item.icon size={16} className="text-white/60" />
-                    <span className="text-xs text-white/60 font-medium">{item.label}</span>
+                    <item.icon size={16} className="text-gray-400" />
+                    <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">{item.label}</span>
                   </div>
-                  <p className="text-2xl font-bold">{item.value}</p>
+                  <p className="text-2xl font-extrabold text-gray-900">{item.value}</p>
                   <span className={cn(
                     "text-[10px] font-bold uppercase tracking-wider",
-                    item.status === "Action Needed" ? "text-amber-400" : "text-green-400"
+                    item.status === "Action Needed" ? "text-amber-600" : "text-green-600"
                   )}>{item.status}</span>
                 </div>
               ))}

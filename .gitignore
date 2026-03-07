@@ -1,12 +1,58 @@
-node_modules/
-.env
-.env.local
-.DS_Store
-dist/
-build/
+# Dependency directories
+**/node_modules/
+jspm_packages/
+
+# Build outputs
+**/dist/
+**/build/
+.next/
+out/
+bin/
+obj/
+
+# Environment variables
+**/.env
+**/.env.*
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+!.env.example
+
+# Logs and temporary files
 *.log
+**/*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+build.log
+seed_output.txt
+seed_log.txt
+server_out.txt
+test_output.txt
+db_result.txt
+db_counts.json
 search_results.txt
 port8000.txt
+npm_list.txt
+*.png
+test_download.pdf
+
+# Editor/IDE folders
 .vscode/
-backend/uploads/
-**/dist/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project specific ignores
+**/uploads/
+CRUD_SAMPLE_DATA.json
+maint2.json
+maint_check.json
