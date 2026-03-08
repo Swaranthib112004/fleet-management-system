@@ -37,19 +37,16 @@ function normalizeId(obj: any): any {
 // VEHICLES
 // =====================
 export const vehiclesApi = {
-    getAll: async (params?: Record<string, any>): Promise<any> => {
+    getAll: async (params?: Record<string, any>): Promise<Vehicle[]> => {
         // Filter out undefined and null values to avoid sending "undefined" strings
         const cleanParams = params ? Object.fromEntries(
             Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
         ) : {};
         const query = Object.keys(cleanParams).length > 0 ? "?" + new URLSearchParams(cleanParams).toString() : "";
         const res: any = await request(`/api/vehicles${query}`);
-        // If it's a paginated response, normalize IDs in the vehicles array
-        if (res.vehicles) {
-            res.vehicles = normalizeId(res.vehicles);
-            return res;
-        }
-        return normalizeId(res);
+        // Handle both direct array and nested vehicles response, then normalize IDs
+        const vehicles = Array.isArray(res) ? res : (res?.vehicles || []);
+        return normalizeId(vehicles);
     },
     getById: async (id: string): Promise<Vehicle> => {
         const res = await request(`/api/vehicles/${id}`);
@@ -109,8 +106,10 @@ export const maintenanceApi = {
         ) : {};
         const query = Object.keys(cleanParams).length > 0 ? "?" + new URLSearchParams(cleanParams).toString() : "";
         const res: any = await request(`/api/maintenance${query}`);
-        // Return full response for pagination support, normalize IDs inside items/maintenance
+
+        // Return the full response (res.items, res.pages) to support table pagination
         if (res.items) res.items = normalizeId(res.items);
+        if (Array.isArray(res)) return normalizeId(res);
         if (res.maintenance) res.maintenance = normalizeId(res.maintenance);
         return res;
     },
