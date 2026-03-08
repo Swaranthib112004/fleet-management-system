@@ -1,0 +1,5 @@
+﻿2325312 Cleanup codebase: Remove test scripts, logs, and sensitive temporary files
+ba5ef5f fix: resolve mismatch between dashboard overview API and local client-sided calculation limits by fetching all items with limit 1000
+2e71b01 fix: correctly handle maintenance logs API pagination response array structure
+df3c027 fix: updated sys-health values calculation & white UI theme on admin and driver dashboard
+e41ed17 feat: migrate to Gemini AI and clean credentials
