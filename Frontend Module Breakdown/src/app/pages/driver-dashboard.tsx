@@ -338,18 +338,18 @@ export function DriverDashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
-            className="bg-gradient-to-br from-indigo-900 to-slate-900 p-8 rounded-[2rem] text-white overflow-hidden relative"
+            className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden relative"
           >
-            <div className="absolute top-0 right-0 p-6 opacity-5">
-              <BarChart3 size={120} />
+            <div className="absolute top-0 right-0 p-6 opacity-[0.03]">
+              <BarChart3 size={120} className="text-gray-900" />
             </div>
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                  <TrendingUp size={20} className="text-green-400" />
+                <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+                  <TrendingUp size={20} className="text-green-600" />
                 </div>
-                <h3 className="text-lg font-bold">Performance Summary</h3>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30">
+                <h3 className="text-lg font-bold text-gray-900">Performance Summary</h3>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-50 text-green-600 border border-green-100">
                   Good Standing
                 </span>
               </div>
@@ -360,12 +360,12 @@ export function DriverDashboard() {
                   { label: "This Week", value: `${(stats.totalTrips || 0) * 5}`, icon: Calendar },
                   { label: "Fuel Score", value: "A+", icon: Fuel },
                 ].map((item) => (
-                  <div key={item.label} className="bg-white/5 border border-white/10 p-4 rounded-xl backdrop-blur-sm">
+                  <div key={item.label} className="bg-gray-50 border border-gray-100 p-4 rounded-xl">
                     <div className="flex items-center gap-2 mb-2">
-                      <item.icon size={14} className="text-white/60" />
-                      <span className="text-xs text-white/60 font-medium">{item.label}</span>
+                      <item.icon size={14} className="text-gray-500" />
+                      <span className="text-xs text-gray-500 font-medium">{item.label}</span>
                     </div>
-                    <p className="text-2xl font-bold">{item.value}</p>
+                    <p className="text-2xl font-bold text-gray-900">{item.value}</p>
                   </div>
                 ))}
               </div>

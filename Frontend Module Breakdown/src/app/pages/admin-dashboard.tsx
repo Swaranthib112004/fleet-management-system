@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./../lib/auth";
-import { vehiclesApi, driversApi, maintenanceApi, routesApi, auditApi, dashboardApi } from "../lib/api";
+import { vehiclesApi, driversApi, maintenanceApi, routesApi, auditApi } from "../lib/api";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import {
@@ -15,35 +15,31 @@ export function AdminDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [vehicleCount, setVehicleCount] = React.useState(0);
-  const [driverCount, setDriverCount] = React.useState(0);
+  const [vehicles, setVehicles] = React.useState<any[]>([]);
+  const [drivers, setDrivers] = React.useState<any[]>([]);
   const [maintenanceItems, setMaintenanceItems] = React.useState<any[]>([]);
   const [routes, setRoutes] = React.useState<any[]>([]);
   const [auditLogs, setAuditLogs] = React.useState<any[]>([]);
-  const [overviewStats, setOverviewStats] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const [vResp, dResp, mResp, rResp, aResp, oResp] = await Promise.allSettled([
+        const [vResp, dResp, mResp, rResp, aResp] = await Promise.allSettled([
           vehiclesApi.getAll(),
           driversApi.getAll(),
           maintenanceApi.getAll(),
           routesApi.getAll(),
           auditApi.getAll(),
-          dashboardApi.getOverview(),
         ]);
-
         if (vResp.status === "fulfilled") {
           const v = vResp.value as any;
-          // Use global total if available, else count results
-          setVehicleCount(v?.globalStats?.total ?? v?.total ?? v?.vehicles?.length ?? v?.length ?? 0);
+          setVehicles(v?.vehicles || (Array.isArray(v) ? v : []));
         }
         if (dResp.status === "fulfilled") {
           const d = dResp.value as any;
-          setDriverCount(d?.total ?? d?.drivers?.length ?? d?.length ?? 0);
+          setDrivers(d?.drivers || (Array.isArray(d) ? d : []));
         }
         if (mResp.status === "fulfilled") {
           const m = mResp.value as any;
@@ -51,17 +47,15 @@ export function AdminDashboard() {
         }
         if (rResp.status === "fulfilled") {
           const r = rResp.value as any;
+          // backend may return { success, data, pagination } or an array
           setRoutes(r?.data || r?.routes || (Array.isArray(r) ? r : []));
         }
         if (aResp.status === "fulfilled") {
           const a = aResp.value as any;
           setAuditLogs(Array.isArray(a) ? a.slice(0, 8) : []);
         }
-        if (oResp.status === "fulfilled") {
-          const o = oResp.value as any;
-          setOverviewStats(o.stats || []);
-        }
       } catch (err: any) {
+        // Silently handle errors - fall back to empty data
         console.warn("Admin dashboard load error:", err.message);
       } finally {
         setLoading(false);
@@ -70,6 +64,8 @@ export function AdminDashboard() {
     load();
   }, []);
 
+  const activeVehicles = vehicles.filter((v: any) => v.status === "active" || v.status === "Active").length;
+  const activeDrivers = drivers.filter((d: any) => d.status === "Active" || !d.status).length;
   const pendingMaintenance = Array.isArray(maintenanceItems)
     ? maintenanceItems.filter((m: any) => m.status !== "Completed").length
     : 0;
@@ -79,8 +75,8 @@ export function AdminDashboard() {
 
   // Quick action cards for admin
   const quickActions = [
-    { icon: Truck, label: "Manage Vehicles", desc: "Add, edit, delete fleet vehicles", path: "/app/fleet/vehicles", color: "from-blue-500 to-blue-700", count: vehicleCount },
-    { icon: Users, label: "Manage Drivers", desc: "Driver assignments & profiles", path: "/app/fleet/drivers", color: "from-emerald-500 to-emerald-700", count: driverCount },
+    { icon: Truck, label: "Manage Vehicles", desc: "Add, edit, delete fleet vehicles", path: "/app/fleet/vehicles", color: "from-blue-500 to-blue-700", count: vehicles.length },
+    { icon: Users, label: "Manage Drivers", desc: "Driver assignments & profiles", path: "/app/fleet/drivers", color: "from-emerald-500 to-emerald-700", count: drivers.length },
     { icon: Wrench, label: "Maintenance", desc: "Schedule & track services", path: "/app/maintenance", color: "from-orange-500 to-orange-700", count: pendingMaintenance },
     { icon: Map, label: "Routes & Tracking", desc: "GPS tracking & route optimization", path: "/app/routing", color: "from-violet-500 to-violet-700", count: activeRoutes },
     { icon: BarChart3, label: "Analytics", desc: "Fleet performance insights", path: "/app/analytics", color: "from-pink-500 to-pink-700", count: null },
@@ -170,37 +166,17 @@ export function AdminDashboard() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               {[
-                {
-                  label: "Vehicles",
-                  value: overviewStats.find(s => s.label === "Total Vehicles")?.value ?? vehicleCount,
-                  icon: Truck,
-                  status: "Active"
-                },
-                {
-                  label: "Drivers",
-                  value: overviewStats.find(s => s.label === "Active Drivers")?.value ?? driverCount,
-                  icon: Users,
-                  status: "Online"
-                },
-                {
-                  label: "Pending Jobs",
-                  value: overviewStats.find(s => s.label === "Pending Service")?.value ?? pendingMaintenance,
-                  icon: Wrench,
-                  status: (Number(overviewStats.find(s => s.label === "Pending Service")?.value) || pendingMaintenance) > 0 ? "Action Needed" : "Clear"
-                },
-                {
-                  label: "Active Routes",
-                  value: overviewStats.find(s => s.label === "Active Routes")?.value ?? activeRoutes,
-                  icon: Map,
-                  status: "Tracking"
-                },
+                { label: "Vehicles", value: activeVehicles, icon: Truck, status: "Active" },
+                { label: "Drivers", value: activeDrivers, icon: Users, status: "Online" },
+                { label: "Pending Jobs", value: pendingMaintenance, icon: Wrench, status: pendingMaintenance > 0 ? "Action Needed" : "Clear" },
+                { label: "Active Routes", value: activeRoutes, icon: Map, status: "Tracking" },
               ].map((item) => (
                 <div key={item.label} className="bg-gray-50 border border-gray-100 p-4 rounded-xl">
                   <div className="flex items-center gap-2 mb-2">
-                    <item.icon size={16} className="text-gray-400" />
-                    <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">{item.label}</span>
+                    <item.icon size={16} className="text-gray-500" />
+                    <span className="text-xs text-gray-500 font-medium">{item.label}</span>
                   </div>
-                  <p className="text-2xl font-extrabold text-gray-900">{item.value}</p>
+                  <p className="text-2xl font-bold text-gray-900">{item.value}</p>
                   <span className={cn(
                     "text-[10px] font-bold uppercase tracking-wider",
                     item.status === "Action Needed" ? "text-amber-600" : "text-green-600"
