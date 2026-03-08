@@ -13,6 +13,218 @@ import { LeafletMap } from "../components/LeafletMap";
 import { io } from "socket.io-client";
 import type { Route as RouteType, TrackedVehicle } from "../lib/types";
 
+// ─── Advanced Location Search (Multi-source: Photon + Nominatim) ─────────────
+// Searches two free APIs simultaneously for maximum coverage worldwide.
+// Starts after 2 characters, deduplicates results, shows type badges.
+function LocationSearch({
+   value,
+   onSelect,
+   placeholder,
+   className,
+}: {
+   value: string;
+   onSelect: (name: string, lat: number, lng: number) => void;
+   placeholder?: string;
+   className?: string;
+}) {
+   const [query, setQuery] = React.useState(value);
+   const [suggestions, setSuggestions] = React.useState<any[]>([]);
+   const [loading, setLoading] = React.useState(false);
+   const [selected, setSelected] = React.useState(false);
+   const [noResults, setNoResults] = React.useState(false);
+   const debounceRef = React.useRef<any>(null);
+   const abortRef = React.useRef<AbortController | null>(null);
+
+   React.useEffect(() => { setQuery(value); }, [value]);
+
+   const normalizePhoton = (item: any): any => {
+      const p = item.properties || {};
+      const coords = item.geometry?.coordinates;
+      if (!coords) return null;
+      const lng = coords[0];
+      const lat = coords[1];
+      const nameParts = [p.name, p.street, p.city, p.state, p.country].filter(Boolean);
+      const display_name = nameParts.join(", ");
+      const short = p.name || p.street || p.city || display_name.split(",")[0];
+      const type = p.osm_value || p.type || "place";
+      return { lat: String(lat), lon: String(lng), display_name, short, type, source: "photon" };
+   };
+
+   const normalizeNominatim = (item: any): any => {
+      const short = item.display_name?.split(",")[0] || item.name || "";
+      const type = item.type || item.class || "place";
+      return { ...item, short, type, source: "nominatim" };
+   };
+
+   const fetchSuggestions = async (q: string) => {
+      if (q.trim().length < 2) { setSuggestions([]); setNoResults(false); return; }
+      setLoading(true);
+      setNoResults(false);
+
+      // Cancel any previous in-flight requests
+      if (abortRef.current) abortRef.current.abort();
+      abortRef.current = new AbortController();
+      const { signal } = abortRef.current;
+
+      try {
+         // Fire both APIs in parallel for maximum coverage
+         const [photonRes, nominatimRes] = await Promise.allSettled([
+            // Photon (Komoot) — excellent global coverage, especially for Indian cities
+            fetch(
+               `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=en`,
+               { signal }
+            ).then(r => r.json()).then(d => (d.features || []).map(normalizePhoton).filter(Boolean)),
+
+            // Nominatim OSM — global, authoritative, great for addresses
+            fetch(
+               `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1&extratags=1&accept-language=en`,
+               { signal, headers: { "Accept-Language": "en" } }
+            ).then(r => r.json()).then(d => (d || []).map(normalizeNominatim)),
+         ]);
+
+         const photon = photonRes.status === "fulfilled" ? photonRes.value : [];
+         const nominatim = nominatimRes.status === "fulfilled" ? nominatimRes.value : [];
+
+         // Merge and deduplicate by proximity (~1km similarity check)
+         const seen = new Set<string>();
+         const merged: any[] = [];
+
+         const addIfUnique = (item: any) => {
+            if (!item?.lat || !item?.lon) return;
+            const lat = parseFloat(item.lat);
+            const lon = parseFloat(item.lon);
+            if (!isFinite(lat) || !isFinite(lon)) return;
+            // Round to 2 decimal places for deduplication key (~1km radius)
+            const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+            if (!seen.has(key)) {
+               seen.add(key);
+               merged.push(item);
+            }
+         };
+
+         // Interleave results for best variety
+         const maxLen = Math.max(photon.length, nominatim.length);
+         for (let i = 0; i < maxLen; i++) {
+            if (photon[i]) addIfUnique(photon[i]);
+            if (nominatim[i]) addIfUnique(nominatim[i]);
+         }
+
+         setSuggestions(merged.slice(0, 10));
+         setNoResults(merged.length === 0);
+      } catch (e: any) {
+         if (e.name !== "AbortError") {
+            setSuggestions([]);
+            setNoResults(true);
+         }
+      } finally {
+         setLoading(false);
+      }
+   };
+
+   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const v = e.target.value;
+      setQuery(v);
+      setSelected(false);
+      clearTimeout(debounceRef.current);
+      if (v.length === 0) { setSuggestions([]); setNoResults(false); return; }
+      // Fast debounce: 300ms for >= 3 chars, 600ms for 2 chars (slower for very short)
+      debounceRef.current = setTimeout(() => fetchSuggestions(v), v.length < 3 ? 600 : 300);
+   };
+
+   // Type badge colour mapping
+   const typeBadge = (type: string) => {
+      const t = (type || "").toLowerCase();
+      if (["city", "town", "village", "municipality"].includes(t)) return "bg-blue-50 text-blue-600";
+      if (["airport", "aerodrome"].includes(t)) return "bg-violet-50 text-violet-600";
+      if (["station", "railway", "bus_stop"].includes(t)) return "bg-amber-50 text-amber-600";
+      if (["hospital", "clinic"].includes(t)) return "bg-red-50 text-red-600";
+      if (["university", "school"].includes(t)) return "bg-green-50 text-green-600";
+      if (["hotel", "hostel"].includes(t)) return "bg-pink-50 text-pink-600";
+      return "bg-gray-50 text-gray-600";
+   };
+
+   const handleSelect = (item: any) => {
+      const lat = parseFloat(item.lat);
+      const lng = parseFloat(item.lon);
+      const fullName = item.display_name;
+      const shortName = item.short || fullName.split(",")[0];
+      setQuery(shortName);
+      setSuggestions([]);
+      setNoResults(false);
+      setSelected(true);
+      onSelect(fullName, lat, lng);
+   };
+
+   return (
+      <div className="relative">
+         <div className="relative flex items-center">
+            <MapPin size={15} className="absolute left-3 text-gray-400 pointer-events-none" />
+            <input
+               type="text"
+               placeholder={placeholder || "Type to search location worldwide..."}
+               value={query}
+               onChange={handleChange}
+               onFocus={() => { if (query.length >= 2 && suggestions.length === 0 && !selected) fetchSuggestions(query); }}
+               onBlur={() => setTimeout(() => setSuggestions([]), 250)}
+               className={`${className} pl-8`}
+               autoComplete="off"
+               spellCheck={false}
+            />
+            {loading && (
+               <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+               </div>
+            )}
+            {selected && !loading && (
+               <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500">
+                  <CheckCircle2 size={16} />
+               </div>
+            )}
+         </div>
+
+         {/* Suggestions dropdown */}
+         {(suggestions.length > 0 || noResults) && (
+            <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden max-h-72 overflow-y-auto">
+               {noResults ? (
+                  <div className="px-4 py-5 text-center text-sm text-gray-400 font-medium">
+                     <MapPin size={20} className="mx-auto mb-2 text-gray-300" />
+                     No locations found. Try a shorter or different search term.
+                  </div>
+               ) : (
+                  suggestions.map((s, i) => (
+                     <button
+                        key={i}
+                        type="button"
+                        onMouseDown={() => handleSelect(s)}
+                        className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-gray-50 last:border-0 transition-colors group"
+                     >
+                        <div className="flex items-start gap-3">
+                           <div className="mt-0.5 text-gray-400 shrink-0 group-hover:text-blue-500 transition-colors">
+                              <MapPin size={14} />
+                           </div>
+                           <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                 <p className="text-sm font-bold text-gray-900 truncate">{s.short || s.display_name.split(",")[0]}</p>
+                                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0 uppercase tracking-wider ${typeBadge(s.type)}`}>{s.type}</span>
+                              </div>
+                              <p className="text-[11px] text-gray-500 truncate">{s.display_name}</p>
+                              <p className="text-[10px] text-blue-500 font-bold mt-0.5">
+                                 📍 {parseFloat(s.lat).toFixed(5)}, {parseFloat(s.lon).toFixed(5)}
+                              </p>
+                           </div>
+                        </div>
+                     </button>
+                  ))
+               )}
+               <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex items-center gap-1">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Powered by OpenStreetMap</span>
+               </div>
+            </div>
+         )}
+      </div>
+   );
+}
+
 export function RoutingPage() {
    const [activeTab, setActiveTab] = React.useState("tracking");
    const [selectedVehicle, setSelectedVehicle] = React.useState<TrackedVehicle | null>(null);
@@ -120,8 +332,43 @@ export function RoutingPage() {
          const data = resp.data || resp;
 
          const path = data.path || [];
+         const metrics = data.metrics || null;
          setOptimizedPath(path);
-         setOptimizationMetrics(data.metrics || null);
+         setOptimizationMetrics(metrics);
+
+         // 🚀 Inject AI-optimized route waypoints into the tracked vehicle for the selected trip
+         // Critical: use routePolyline (real OSRM road geometry = the actual blue line)
+         // NOT data.path which only has 2-3 raw stop coordinates
+         const roadPolyline: { lat: number; lng: number }[] = metrics?.routePolyline || path;
+
+         if (roadPolyline.length > 1) {
+            const firstPoint = roadPolyline[0];
+            // Find vehicle by selectedTrip, OR fall back to first active moving vehicle
+            setTrackedVehicles(prev => {
+               const tripId = selectedTrip
+                  ? ((selectedTrip as any)._id || (selectedTrip as any).id)
+                  : null;
+               // Try to match on tripId; if no match, update the first moving vehicle
+               const hasMatch = tripId ? prev.some(v => v.routeId === tripId || v.id === tripId) : false;
+               return prev.map((v, idx) => {
+                  const isTarget = tripId
+                     ? (v.routeId === tripId || v.id === tripId)
+                     : (!hasMatch && idx === 0); // fallback: first vehicle
+                  if (!isTarget) return v;
+                  return {
+                     ...v,
+                     // Snap vehicle position to the start of the road line
+                     x: firstPoint.lng,
+                     y: firstPoint.lat,
+                     routeWaypoints: roadPolyline,
+                     waypointIndex: 0,
+                     status: 'moving' as const,
+                     speed: 65, // Ensure positive speed for simulation
+                     routeId: tripId || undefined // Explicitly tie to trip
+                  };
+               });
+            });
+         }
 
          // Show which optimizer was actually used
          const optimizerUsed = data.optimizerUsed || data.algorithm || 'unknown';
@@ -151,9 +398,33 @@ export function RoutingPage() {
             // Silent success for fallback - no toast message
             toast.info("Route optimization complete");
          }
+
+         // 🚀 PERSIST IMMEDIATELY if we have a selected trip
+         if (selectedTrip && roadPolyline.length > 0) {
+            try {
+               const updateData: any = {
+                  routePolyline: roadPolyline,
+                  isOptimized: true,
+                  optimizationScore: metrics?.efficiencyGain || 0,
+                  totalDistance: metrics?.distance || 0,
+                  totalDuration: metrics?.duration || 0
+               };
+               // If it's a planned trip, maybe leave it planned? Or auto-activate?
+               // The user said "after starting trip", so let's assume they might click Start Trip later.
+               // But we definitely want to save the polyline NOW.
+               await routesApi.update(selectedTrip._id || selectedTrip.id!, updateData);
+               console.log("Optimized route persisted to DB");
+               await reloadRoutes(); // Refresh local state with saved data
+            } catch (saveErr) {
+               console.error("Failed to persist optimized route:", saveErr);
+            }
+         }
+
+         setIsOptimizing(false);
       } catch (err: any) {
-         toast.error(err.message || "Optimization failed");
-      } finally {
+         console.error("Optimization failed:", err);
+         const errorMessage = err.response?.data?.error || err.message || "Error optimizing route";
+         toast.error(errorMessage);
          setIsOptimizing(false);
       }
    };
@@ -198,17 +469,19 @@ export function RoutingPage() {
                   const wlng = parseFloat(w.lng as any);
                   return {
                      address: w.address,
-                     latitude: isFinite(wl) ? wl : null,
-                     longitude: isFinite(wlng) ? wlng : null,
-                     stopType: w.stopType,
+                     latitude: isFinite(wl) ? wl : 0,
+                     longitude: isFinite(wlng) ? wlng : 0,
+                     stopType: w.stopType as "delivery" | "pickup" | "inspection",
                      notes: w.notes,
                      estimatedTime: new Date(routeForm.startTime).toISOString()
                   };
                }),
-            status: routeForm.status,
+            status: routeForm.status as "planned" | "active" | "paused" | "completed",
             startTime: new Date(routeForm.startTime).toISOString(),
-            routeType: routeForm.routeType,
-            totalStops: routeForm.waypoints.filter(w => w.address).length
+            routeType: routeForm.routeType as "standard" | "express" | "optimized",
+            totalStops: routeForm.waypoints.filter(w => w.address).length,
+            totalDistance: 0,
+            totalDuration: 0,
          };
 
          await routesApi.create(payload);
@@ -246,22 +519,55 @@ export function RoutingPage() {
       }
    };
 
+   const handleUpdateTripStatus = async (id: string, newStatus: string) => {
+      try {
+         // If starting an optimized trip, include the polyline we generated
+         const updateData: Partial<RouteType> = { status: newStatus as any };
+         if (newStatus === 'active') {
+            // Priority: optimizedPath > selectedTrip.routePolyline
+            const activePath = (optimizedPath && optimizedPath.length > 0)
+               ? optimizedPath
+               : (selectedTrip?.routePolyline || []);
+
+            if (activePath.length > 0) {
+               updateData.routePolyline = activePath;
+               updateData.isOptimized = true;
+               if (optimizationMetrics) {
+                  updateData.totalDistance = optimizationMetrics.distance;
+                  updateData.totalDuration = optimizationMetrics.duration;
+                  updateData.optimizationScore = optimizationMetrics.efficiencyGain;
+               }
+            }
+         }
+
+         await routesApi.update(id, updateData);
+         toast.success(`Trip marked as ${newStatus}`);
+         await reloadRoutes();
+      } catch (err: any) {
+         toast.error(err.message || "Update failed");
+      }
+   };
+
    const reloadRoutes = async () => {
       setLoadingData(true);
       try {
          const resp: any = await routesApi.getAll();
          // routesApi.getAll may return either an array or a wrapped object
+         let fetchedRoutes: RouteType[] = [];
          if (Array.isArray(resp)) {
-            setRoutes(resp);
+            fetchedRoutes = resp;
          } else if (resp && resp.data) {
-            setRoutes(resp.data || []);
+            fetchedRoutes = resp.data || [];
          } else if (resp && resp.routes) {
-            setRoutes(resp.routes || []);
+            fetchedRoutes = resp.routes || [];
          } else {
-            setRoutes(resp || []);
+            fetchedRoutes = resp || [];
          }
+         setRoutes(fetchedRoutes);
+         // Immediately rebuild tracked vehicles from fresh route data
+         // (can't rely on `routes` state here — it's still the old value)
+         reloadTracked(fetchedRoutes);
       } catch (err: any) {
-         // Silently fall back to empty list
          console.warn("Failed to load routes:", err.message);
          setRoutes([]);
       } finally {
@@ -315,47 +621,125 @@ export function RoutingPage() {
       }));
    };
 
-   // Default simulation fleet — 3 vehicles for testing
-   const DEFAULT_FLEET: TrackedVehicle[] = [
-      { id: 'sim1', x: 77.2090, y: 28.6139, registration: 'DL-01-AB-1234', driver: 'Rajesh K.', status: 'moving', speed: 42 },
-      { id: 'sim2', x: 77.2290, y: 28.6339, registration: 'DL-02-CD-5678', driver: 'Amit S.', status: 'moving', speed: 35 },
-      { id: 'sim3', x: 77.1890, y: 28.5939, registration: 'DL-03-EF-9012', driver: 'Priya M.', status: 'idle', speed: 0 },
-   ];
+   /**
+    * Build tracked vehicles from real routes stored in DB.
+    * Each active/planned route becomes a tracked vehicle placed at its start location.
+    * This ensures Live Tracking always shows created trip vehicles, not fake ones.
+    */
+   const buildTrackedFromRoutes = (routeList: RouteType[]): TrackedVehicle[] => {
+      const activeRoutes = routeList.filter((r: any) =>
+         ['planned', 'active', 'in-progress', 'in_progress'].includes((r.status || '').toLowerCase())
+      );
 
-   /** Normalize any backend shape into a safe TrackedVehicle */
-   const normalizeVehicle = (raw: any): TrackedVehicle | null => {
-      if (!raw || typeof raw !== 'object') return null;
-      const id = raw.id || raw._id || raw.vehicleId || '';
-      // Accept x/y OR longitude/latitude
-      const x = Number(raw.x ?? raw.longitude ?? raw.lng ?? NaN);
-      const y = Number(raw.y ?? raw.latitude ?? raw.lat ?? NaN);
-      if (!id || !isFinite(x) || !isFinite(y)) return null;
-      const reg = raw.registration || raw.licensePlate || raw.vehicle?.licensePlate || id;
-      const driver = raw.driver || raw.driverName || '';
-      const status = (['moving', 'idle', 'offline'].includes(raw.status) ? raw.status
-         : raw.isMoving ? 'moving' : raw.engineStatus === 'on' ? 'moving'
-            : raw.engineStatus === 'idle' ? 'idle' : 'offline') as TrackedVehicle['status'];
-      const speed = Number(raw.speed ?? 0);
-      return { id, x, y, registration: reg, driver, status, speed };
+      if (activeRoutes.length === 0) return [];
+
+      return activeRoutes.map((r: any, idx: number) => {
+         // Prefer start location coords; fall back to waypoint if missing
+         const startLat = r.startLocation?.latitude ?? r.waypoints?.[0]?.latitude ?? 28.6139;
+         const startLng = r.startLocation?.longitude ?? r.waypoints?.[0]?.longitude ?? 77.2090;
+
+         // Vehicle registration: object with .registration, or plain string, or ID
+         const reg = typeof r.vehicle === 'object'
+            ? (r.vehicle?.registration || r.vehicle?.licensePlate || `RT-${idx + 1}`)
+            : (r.vehicle || `Trip-${idx + 1}`);
+
+         // Driver name: object with .name, or plain string
+         const driverName = typeof r.driver === 'object'
+            ? (r.driver?.name || 'Driver')
+            : (r.driver || 'Driver');
+
+         const isActive = ['active', 'in-progress', 'in_progress'].includes((r.status || '').toLowerCase());
+
+         // Build a full waypoint path: 
+         // 1. Prefer saved high-res road geometry (routePolyline)
+         // 2. Fall back to raw stops
+         let waypointPath: { lat: number; lng: number }[] = [];
+
+         if (r.routePolyline && r.routePolyline.length > 0) {
+            waypointPath = r.routePolyline;
+         } else {
+            // Start location as first point
+            waypointPath.push({ lat: startLat, lng: startLng });
+
+            if (r.waypoints && r.waypoints.length > 0) {
+               r.waypoints.forEach((w: any) => {
+                  if (isFinite(w.latitude) && isFinite(w.longitude)) {
+                     waypointPath.push({ lat: w.latitude, lng: w.longitude });
+                  }
+               });
+            }
+            // Always add end location as final waypoint if not already in polyline
+            if (r.endLocation && isFinite(r.endLocation.latitude) && isFinite(r.endLocation.longitude)) {
+               waypointPath.push({ lat: r.endLocation.latitude, lng: r.endLocation.longitude });
+            }
+         }
+
+         // Snap current position to first point of path to avoid "teleporting"
+         const currentX = (waypointPath[0]) ? waypointPath[0].lng : startLng;
+         const currentY = (waypointPath[0]) ? waypointPath[0].lat : startLat;
+
+         return {
+            id: r._id || r.id || `route-${idx}`,
+            routeId: r._id || r.id,
+            x: currentX,
+            y: currentY,
+            targetLat: r.endLocation?.latitude,
+            targetLng: r.endLocation?.longitude,
+            routeWaypoints: waypointPath.length > 0 ? waypointPath : undefined,
+            waypointIndex: 0,
+            registration: reg,
+            driver: driverName,
+            status: isActive ? 'moving' : 'idle',
+            speed: isActive ? Math.floor(25 + Math.random() * 30) : 0,
+         } as TrackedVehicle;
+      });
    };
 
-   const reloadTracked = async () => {
-      try {
-         const resp: any = await trackedApi.getAll();
-         const arr = Array.isArray(resp) ? resp : [];
-         const normalized = arr.map(normalizeVehicle).filter(Boolean) as TrackedVehicle[];
-         setTrackedVehicles(normalized.length > 0 ? normalized : DEFAULT_FLEET);
-      } catch {
-         setTrackedVehicles(DEFAULT_FLEET);
-      }
+   const reloadTracked = async (routeList?: RouteType[]) => {
+      const list = routeList ?? routes;
+      const fromRoutes = buildTrackedFromRoutes(list);
+
+      setTrackedVehicles(prev => {
+         if (prev.length === 0) return fromRoutes;
+
+         // Merge logic: preserve existing movement state for vehicles we are already simulating
+         return fromRoutes.map(newV => {
+            const existing = prev.find(ext => ext.id === newV.id);
+
+            // If this vehicle is currently in a high-res AI simulation, PROTECT it
+            const isSimulating = existing && (
+               existing.status === 'moving' ||
+               (existing.routeWaypoints && existing.routeWaypoints.length > 10)
+            );
+
+            if (isSimulating) {
+               return {
+                  ...newV,
+                  x: existing.x,
+                  y: existing.y,
+                  status: existing.status,
+                  speed: Number(existing.speed) > 0 ? existing.speed : 65, // ensure it has speed
+                  routeWaypoints: existing.routeWaypoints,
+                  waypointIndex: existing.waypointIndex
+               };
+            }
+            return newV;
+         });
+      });
    };
 
    React.useEffect(() => {
       reloadRoutes();
-      reloadTracked();
       reloadVehicles();
       reloadDrivers();
    }, []);
+
+   // Whenever routes change (new trip added/deleted), rebuild the tracked fleet list
+   React.useEffect(() => {
+      if (routes.length > 0) {
+         reloadTracked(routes);
+      }
+   }, [routes]);
 
    // Build track history — skip any vehicle with invalid coords
    React.useEffect(() => {
@@ -380,7 +764,7 @@ export function RoutingPage() {
       });
    }, [trackedVehicles]);
 
-   // Real-time GPS movement simulation – smooth, natural paths
+   // Real-time GPS movement simulation – vehicle snaps precisely along AI-optimized route path
    React.useEffect(() => {
       const movementInterval = setInterval(() => {
          setTrackedVehicles((prev) =>
@@ -388,22 +772,89 @@ export function RoutingPage() {
                if (v.status !== 'moving') return v;
                const cx = Number(v.x); const cy = Number(v.y);
                if (!isFinite(cx) || !isFinite(cy)) return v;
-               const prevHeading = vehicleHeadingsRef.current[v.id] ?? (Math.random() * Math.PI * 2);
-               const drift = (Math.random() - 0.5) * 0.52;
-               const heading = prevHeading + drift;
-               vehicleHeadingsRef.current[v.id] = heading;
-               const spd = 0.0004 + Math.random() * 0.0003;
-               return {
-                  ...v,
-                  x: cx + Math.cos(heading) * spd,
-                  y: cy + Math.sin(heading) * spd,
-                  speed: Math.floor(25 + Math.random() * 35),
-               };
+
+               if (v.routeWaypoints && v.routeWaypoints.length > 0) {
+                  // ── AI ROUTE MODE: follow OSRM road geometry precisely ──
+                  const totalPts = v.routeWaypoints.length;
+                  let wpIdx = v.waypointIndex ?? 0;
+                  if (wpIdx >= totalPts) wpIdx = totalPts - 1;
+
+                  // Simulation speed: ULTRA-BOOSTED for visible movement (200x accelerator)
+                  const SPEED_MULTIPLIER = 200;
+                  const currentSpeed = Number(v.speed) || 65;
+                  const tickStep = (currentSpeed * SPEED_MULTIPLIER / 111.3) / 3600;
+
+                  let remaining = tickStep;
+                  let newX = cx || 77.2; // Fallback to avoid NaN
+                  let newY = cy || 28.6;
+                  let newIdx = wpIdx;
+
+                  while (remaining > 0 && newIdx < totalPts) {
+                     const wp = v.routeWaypoints[newIdx];
+                     const dx = wp.lng - newX;
+                     const dy = wp.lat - newY;
+                     const dist = Math.sqrt(dx * dx + dy * dy);
+
+                     if (dist <= remaining) {
+                        newX = wp.lng;
+                        newY = wp.lat;
+                        remaining -= dist;
+                        newIdx = Math.min(newIdx + 1, totalPts - 1);
+                        if (newIdx === totalPts - 1) break;
+                     } else {
+                        const ratio = remaining / dist;
+                        newX = newX + dx * ratio;
+                        newY = newY + dy * ratio;
+                        remaining = 0;
+                     }
+                  }
+
+                  vehicleHeadingsRef.current[v.id] = Math.atan2(newY - cy, newX - cx);
+
+                  return {
+                     ...v,
+                     x: newX,
+                     y: newY,
+                     waypointIndex: newIdx,
+                     speed: Math.floor(currentSpeed), // Keep reported speed but move faster
+                  };
+               } else if (v.targetLat && v.targetLng) {
+                  // Fallback: slow drift toward target
+                  const heading = Math.atan2(v.targetLat - cy, v.targetLng - cx) + (Math.random() - 0.5) * 0.3;
+                  const spd = 0.002; // Faster fallback
+                  vehicleHeadingsRef.current[v.id] = heading;
+                  return {
+                     ...v,
+                     x: cx + Math.cos(heading) * spd,
+                     y: cy + Math.sin(heading) * spd,
+                     speed: 25,
+                  };
+               } else {
+                  return v;
+               }
             })
          );
-      }, 3000);
+      }, 1000); // 1-second ticks for smoother movement
       return () => clearInterval(movementInterval);
    }, []);
+
+   // Destination Geofencing Check (~500m radius)
+   const completingRoutesRef = React.useRef<Set<string>>(new Set());
+   React.useEffect(() => {
+      trackedVehicles.forEach(v => {
+         if (v.status === 'moving' && v.targetLat && v.targetLng && v.routeId) {
+            const dy = v.targetLat - v.y;
+            const dx = v.targetLng - v.x;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            // 0.005 degrees is approx ~500 meters
+            if (dist < 0.005 && !completingRoutesRef.current.has(v.routeId)) {
+               completingRoutesRef.current.add(v.routeId);
+               toast.success(`📍 ${v.registration} has arrived at destination! Auto-completing trip...`, { duration: 6000 });
+               handleUpdateTripStatus(v.routeId, "completed");
+            }
+         }
+      });
+   }, [trackedVehicles]);
 
    // Socket for real-time locations
    React.useEffect(() => {
@@ -465,7 +916,12 @@ export function RoutingPage() {
             });
          }
 
-         setOptimizedPath(routePath);
+         // Use high-res polyline if available, otherwise use raw stops
+         if (selectedTrip.routePolyline && selectedTrip.routePolyline.length > 0) {
+            setOptimizedPath(selectedTrip.routePolyline);
+         } else {
+            setOptimizedPath(routePath);
+         }
 
          // Optionally select the vehicle assigned to this trip
          if (selectedTrip.vehicle) {
@@ -474,6 +930,23 @@ export function RoutingPage() {
             if (vehicle) {
                setSelectedVehicle(vehicle);
             }
+         }
+
+         // Restore optimization results if this trip was previously optimized
+         if (selectedTrip.isOptimized) {
+            setOptimizationMetrics({
+               distanceSaved: selectedTrip.totalDistance && selectedTrip.totalDistance > 0 ? (selectedTrip.totalDistance * 0.15).toFixed(2) : 0,
+               timeSaved: selectedTrip.totalDuration && selectedTrip.totalDuration > 0 ? Math.floor(selectedTrip.totalDuration * 0.2) : 0,
+               costSavings: selectedTrip.totalDistance && selectedTrip.totalDistance > 0 ? (selectedTrip.totalDistance * 0.5).toFixed(2) : 0,
+               efficiencyGain: selectedTrip.optimizationScore || 12,
+               // Fallback values for visual persistence
+               routePolyline: selectedTrip.routePolyline
+            });
+            setAiInsight(`Previously optimized for ${selectedTrip.routeCode}. Enjoy ₹${(selectedTrip.totalDistance || 0) * 0.5} estimated savings! 🚀`);
+         } else {
+            // Clear if trip is not optimized
+            setOptimizationMetrics(null);
+            setAiInsight("");
          }
       }
    }, [selectedTrip, trackedVehicles]);
@@ -691,6 +1164,21 @@ export function RoutingPage() {
                               {isOptimizing ? "Computing..." : "Optimize Route"}
                            </button>
 
+                           {optimizationMetrics && !isOptimizing && (
+                              <motion.button
+                                 initial={{ opacity: 0, scale: 0.95 }}
+                                 animate={{ opacity: 1, scale: 1 }}
+                                 onClick={() => {
+                                    if (selectedTrip) {
+                                       handleUpdateTripStatus(selectedTrip._id || selectedTrip.id!, "active");
+                                    }
+                                 }}
+                                 className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white text-sm font-extrabold hover:from-emerald-600 hover:to-green-700 transition-all shadow-lg flex items-center justify-center gap-2"
+                              >
+                                 <Play size={16} fill="white" /> Start Trip
+                              </motion.button>
+                           )}
+
                            {aiInsight && (
                               <motion.div
                                  initial={{ opacity: 0, y: 10 }}
@@ -777,15 +1265,29 @@ export function RoutingPage() {
                               </div>
                               <div className="mt-2 flex items-center justify-between text-[9px] text-gray-400">
                                  <span>{r.totalStops} stops</span>
-                                 <button
-                                    onClick={(e) => {
-                                       e.stopPropagation();
-                                       handleDeleteRoute(r._id || r.id);
-                                    }}
-                                    className="text-red-500 hover:bg-red-50 px-2 py-1 rounded"
-                                 >
-                                    <Trash2 size={12} />
-                                 </button>
+                                 <div className="flex gap-2">
+                                    {r.status === "planned" && (
+                                       <button
+                                          onClick={(e) => {
+                                             e.stopPropagation();
+                                             handleUpdateTripStatus(r._id || r.id, "active");
+                                          }}
+                                          className="text-green-600 bg-green-50 hover:bg-green-100 font-bold px-2 py-1 rounded"
+                                       >
+                                          Start 🚀
+                                       </button>
+                                    )}
+
+                                    <button
+                                       onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteRoute(r._id || r.id);
+                                       }}
+                                       className="text-red-500 hover:bg-red-50 px-2 py-1 rounded"
+                                    >
+                                       <Trash2 size={12} />
+                                    </button>
+                                 </div>
                               </div>
                            </motion.button>
                         ))}
@@ -1028,14 +1530,24 @@ export function RoutingPage() {
                         {/* Start Location */}
                         <div className="space-y-3 p-4 rounded-xl bg-green-50 border border-green-100">
                            <h4 className="text-sm font-bold text-green-900">Start Location (A)</h4>
-                           <input
-                              type="text"
-                              placeholder="Location name"
-                              required
+                           <LocationSearch
                               value={routeForm.startLocationName}
-                              onChange={(e) => setRouteForm(p => ({ ...p, startLocationName: e.target.value }))}
-                              className="w-full px-4 py-2 rounded-lg border border-green-200 focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all font-medium text-sm"
+                              placeholder="Search start location (e.g. Delhi, Mumbai)..."
+                              className="w-full px-4 py-2 rounded-lg border border-green-200 focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all font-medium text-sm pr-9"
+                              onSelect={(name, lat, lng) => {
+                                 setRouteForm(p => ({
+                                    ...p,
+                                    startLocationName: name,
+                                    startLocationLat: String(lat),
+                                    startLocationLng: String(lng),
+                                 }));
+                              }}
                            />
+                           {routeForm.startLocationLat && (
+                              <p className="text-[11px] text-green-700 font-bold">
+                                 ✅ Coords: {parseFloat(routeForm.startLocationLat).toFixed(4)}, {parseFloat(routeForm.startLocationLng).toFixed(4)}
+                              </p>
+                           )}
                         </div>
 
                         {/* Waypoints */}
@@ -1114,14 +1626,24 @@ export function RoutingPage() {
                         {/* End Location */}
                         <div className="space-y-3 p-4 rounded-xl bg-red-50 border border-red-100">
                            <h4 className="text-sm font-bold text-red-900">End Location (B) *</h4>
-                           <input
-                              type="text"
-                              placeholder="Location name"
-                              required
+                           <LocationSearch
                               value={routeForm.endLocationName}
-                              onChange={(e) => setRouteForm(p => ({ ...p, endLocationName: e.target.value }))}
-                              className="w-full px-4 py-2 rounded-lg border border-red-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none transition-all font-medium text-sm"
+                              placeholder="Search end location (e.g. Bangalore, Chennai)..."
+                              className="w-full px-4 py-2 rounded-lg border border-red-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 outline-none transition-all font-medium text-sm pr-9"
+                              onSelect={(name, lat, lng) => {
+                                 setRouteForm(p => ({
+                                    ...p,
+                                    endLocationName: name,
+                                    endLocationLat: String(lat),
+                                    endLocationLng: String(lng),
+                                 }));
+                              }}
                            />
+                           {routeForm.endLocationLat && (
+                              <p className="text-[11px] text-red-700 font-bold">
+                                 ✅ Coords: {parseFloat(routeForm.endLocationLat).toFixed(4)}, {parseFloat(routeForm.endLocationLng).toFixed(4)}
+                              </p>
+                           )}
                         </div>
 
                         {/* Status, Start Time, Route Type */}

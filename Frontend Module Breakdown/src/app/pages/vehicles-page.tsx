@@ -103,21 +103,18 @@ export function VehiclesPage() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Reset page when filter changes
-  React.useEffect(() => { setCurrentPage(1); }, [searchTerm, statusFilter]);
-
-  const reloadVehicles = async () => {
+  // Single effect — runs whenever any filter/page changes.
+  // reloadVehicles accepts explicit params to avoid stale-closure bugs
+  // where two effects firing simultaneously would send the wrong page number.
+  const reloadVehicles = async (page = currentPage, search = searchTerm, filter = statusFilter) => {
     setLoadingData(true);
     try {
       const resp: any = await vehiclesApi.getAll({
-        page: currentPage,
+        page,
         limit: pageSize,
-        search: searchTerm,
-        status: statusFilter === "All" ? undefined : statusFilter.toLowerCase(),
+        search,
+        status: filter === "All" ? undefined : filter.toLowerCase(),
       });
-      // Support both shapes:
-      // 1) paginated object: { total, page, pages, vehicles }
-      // 2) direct array: [ { ...vehicle }, ... ]
       if (Array.isArray(resp)) {
         setVehicles(resp);
         setTotalCount(resp.length);
@@ -129,8 +126,6 @@ export function VehiclesPage() {
         if (resp.globalStats) setGlobalStats(resp.globalStats);
       }
     } catch (err: any) {
-      // Silently fall back to empty list instead of showing error
-      // This prevents red error boxes on navigation
       console.warn("Failed to load vehicles:", err.message);
       setVehicles([]);
       setTotalPages(1);
@@ -140,9 +135,16 @@ export function VehiclesPage() {
     }
   };
 
+  // When search or filter changes, always reset to page 1 and reload with fresh params
   React.useEffect(() => {
-    reloadVehicles();
-  }, [currentPage, searchTerm, statusFilter]);
+    setCurrentPage(1);
+    reloadVehicles(1, searchTerm, statusFilter);
+  }, [searchTerm, statusFilter]);
+
+  // When paginating (page changes but filter/search haven't changed), reload current page
+  React.useEffect(() => {
+    reloadVehicles(currentPage, searchTerm, statusFilter);
+  }, [currentPage]);
 
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto pb-10">
@@ -219,7 +221,7 @@ export function VehiclesPage() {
             )}
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
-            {["All", "Active", "Maintenance", "Inactive"].map((f) => (
+            {["All", "Active", "Inactive"].map((f) => (
               <button
                 key={f}
                 onClick={() => setStatusFilter(f)}

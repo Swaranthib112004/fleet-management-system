@@ -36,6 +36,10 @@ const routeSchema = new mongoose.Schema({
   optimizationScore: { type: Number },
   routeType: { type: String, default: 'standard' },
   isOptimized: { type: Boolean, default: false },
+  routePolyline: [{
+    lat: { type: Number },
+    lng: { type: Number }
+  }],
   createdBy: { type: mongoose.Schema.Types.Mixed },
   updatedBy: { type: mongoose.Schema.Types.Mixed }
 }, { timestamps: true });

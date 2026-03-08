@@ -97,6 +97,7 @@ export interface Route {
     routeType: "standard" | "express" | "optimized";
     optimizationScore?: number;
     isOptimized?: boolean;
+    routePolyline?: { lat: number; lng: number }[];
     createdAt?: string;
     updatedAt?: string;
 }
@@ -109,6 +110,13 @@ export interface TrackedVehicle {
     driver: string;
     x: number;
     y: number;
+    targetLat?: number;
+    targetLng?: number;
+    routeId?: string;
+    /** Full list of lat/lng waypoints for the AI-optimized route */
+    routeWaypoints?: { lat: number; lng: number }[];
+    /** Index into routeWaypoints that the vehicle is currently driving toward */
+    waypointIndex?: number;
 }
 
 export interface AuditLog {

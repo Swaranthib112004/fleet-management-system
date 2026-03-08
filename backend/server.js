@@ -188,4 +188,5 @@ if (require.main === module) {
 }
 
 // trigger restart
-// Trigger nodemon restart
+
+// Trigger nodemon restart again and again

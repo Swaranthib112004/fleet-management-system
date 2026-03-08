@@ -25,7 +25,7 @@ class RouteController {
         totalDistance,
         totalDuration,
       } = req.body || {};
- 
+
       // Use provided coordinates when available. Do NOT silently default to Delhi coordinates
       // because that makes user-entered city names appear in the wrong place on the map.
       const defaultStart = {
@@ -83,7 +83,7 @@ class RouteController {
   async getAllRoutes(req, res) {
     try {
       const { status, vehicle, driver, search, page = 1, limit = 10 } = req.query;
-      
+
       const filter = {};
       if (status) filter.status = status;
       if (vehicle) filter.vehicle = vehicle;
@@ -93,7 +93,7 @@ class RouteController {
       }
 
       const skip = (page - 1) * limit;
-      
+
       const routes = await Route.find(filter)
         .populate(['vehicle', 'driver', 'createdBy'])
         .skip(skip)
@@ -165,15 +165,31 @@ class RouteController {
         });
       }
 
-      const { status, waypoints, actualEndTime } = req.body;
+      const {
+        status,
+        waypoints,
+        actualEndTime,
+        routePolyline,
+        totalDistance,
+        totalDuration,
+        isOptimized,
+        optimizationScore
+      } = req.body;
 
       if (status) route.status = status;
       if (waypoints) route.waypoints = waypoints;
+      if (routePolyline) route.routePolyline = routePolyline;
+      if (typeof isOptimized !== 'undefined') route.isOptimized = isOptimized;
+      if (optimizationScore) route.optimizationScore = optimizationScore;
+      if (totalDistance) route.totalDistance = totalDistance;
+
       if (actualEndTime) {
         route.actualEndTime = actualEndTime;
         if (route.startTime) {
-          route.totalDuration = (new Date(actualEndTime) - route.startTime) / 60000; // minutes
+          route.totalDuration = (new Date(actualEndTime) - route.startTime) / 60000;
         }
+      } else if (totalDuration) {
+        route.totalDuration = totalDuration;
       }
 
       route.updatedBy = req.user._id;
@@ -461,10 +477,10 @@ class RouteController {
         activeRoutes: routes.filter(r => r.status === 'active').length,
         totalOptimizations: optimizations.length,
         acceptedOptimizations: optimizations.filter(o => o.accepted).length,
-        
+
         totalDistance: routes.reduce((sum, r) => sum + (r.totalDistance || 0), 0),
         averageDistance: routes.length ? routes.reduce((sum, r) => sum + (r.totalDistance || 0), 0) / routes.length : 0,
-        
+
         totalDuration: routes.reduce((sum, r) => sum + (r.totalDuration || 0), 0),
         averageDuration: routes.length ? routes.reduce((sum, r) => sum + (r.totalDuration || 0), 0) / routes.length : 0,
 

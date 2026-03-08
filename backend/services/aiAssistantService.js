@@ -7,8 +7,9 @@ const Trip = require('../models/tripModel');
 
 class AIAssistantService {
   constructor() {
-    this.apiKey = process.env.GEMINI_API_KEY;
-    this.model = process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest';
+    // Check for Gemini API key first, fallback to OpenAI if not present
+    this.aiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
+    this.aiModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
     this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     this.conversationHistory = new Map(); // Store per-user conversation history
   }
@@ -34,15 +35,16 @@ class AIAssistantService {
       // Collect fleet context for better responses
       const fleetContext = await this.getFleetContext(context);
 
-      // Build messages for Gemini
+      // Build messages for GPT-4
       const systemPrompt = this.buildSystemPrompt(fleetContext, context.userRole);
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...history,
+        { role: 'user', content: message }
+      ];
 
-      // Gemini expects a single prompt or a specific history format. 
-      // We'll combine system prompt and history into a structured prompt.
-      const prompt = `System Instructions: ${systemPrompt}\n\nConversation History:\n${history.map(h => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`).join('\n')}\n\nUser: ${message}\n\nAssistant:`;
-
-      // Get response from Gemini
-      const response = await this.callGemini(prompt);
+      // Get response from AI
+      const response = await this.callAI(messages);
       const assistantMessage = response.content;
 
       // Update conversation history
@@ -86,12 +88,17 @@ class AIAssistantService {
       const fleetData = await this.getFleetContext(context);
       const queryPrompt = this.buildQueryPrompt(query, fleetData);
 
-      const response = await this.callGemini(`
-You are a fleet data analyst. Answer questions about the fleet data provided.
-Be concise and provide specific numbers. Format responses clearly.
-
-Data Context:
-${queryPrompt}`);
+      const response = await this.callAI([
+        {
+          role: 'system',
+          content: `You are a fleet data analyst. Answer questions about the fleet data provided.
+Be concise and provide specific numbers. Format responses clearly.`
+        },
+        {
+          role: 'user',
+          content: queryPrompt
+        }
+      ]);
 
       // Try to extract structured data from response
       const result = {
@@ -128,10 +135,16 @@ Format as:
 
 Types: COST_SAVING, SAFETY, EFFICIENCY, MAINTENANCE, PERFORMANCE`;
 
-      const response = await this.callGemini(`
-You are a fleet management consultant. Provide specific, actionable recommendations with quantified benefits based on this data:
-
-${prompt}`);
+      const response = await this.callAI([
+        {
+          role: 'system',
+          content: 'You are a fleet management consultant. Provide specific, actionable recommendations with quantified benefits.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]);
 
       const recommendations = this.parseRecommendations(response.content);
 
@@ -164,27 +177,35 @@ ${prompt}`);
           registration: v.registration,
           make: v.make,
           model: v.model,
-          status: v.status,
-          fuelType: v.fuelType,
-          mileage: v.odometer
+          status: v.status || (v.mileage > 0 ? 'Active' : 'Idle'),
+          fuelType: v.fuel || 'Diesel',
+          mileage: v.mileage || 0,
+          driver: v.driver || 'Unassigned'
         })),
         driverCount: drivers.length,
         drivers: drivers.map(d => ({
           id: d._id,
           name: d.name,
-          licenseStatus: d.licenseStatus,
-          yearsExperience: d.yearsExperience,
-          safetyRating: d.safetyRating || 0
+          licenseNumber: d.licenseNumber || d.license || 'N/A',
+          status: d.status || 'Active',
+          vehicle: d.assignedVehicle || d.vehicle || 'None'
         })),
         routeCount: routes.length,
-        activeRoutes: routes.filter(r => r.status === 'active').length,
+        activeRoutesCount: routes.filter(r => ['active', 'in-progress'].includes(r.status?.toLowerCase())).length,
+        activeRoutes: routes.filter(r => ['active', 'in-progress'].includes(r.status?.toLowerCase())).map(r => ({
+          id: r._id,
+          code: r.routeCode,
+          start: r.startLocation?.name,
+          end: r.endLocation?.name,
+          status: r.status
+        })),
         tripCount: trips.length,
         recentTrips: trips.slice(0, 10).map(t => ({
           id: t._id,
           status: t.status,
-          distance: t.distance,
-          duration: t.duration,
-          fuelUsed: t.fuelUsed
+          distance: t.distance || 0,
+          duration: t.duration || 0,
+          fuelUsed: t.fuelUsed || 0
         }))
       };
     } catch (error) {
@@ -200,13 +221,18 @@ ${prompt}`);
    * @returns {String} System prompt
    */
   buildSystemPrompt(fleetData, userRole = 'manager') {
-    return `You are a helpful Fleet Management AI Assistant for "FleetPro" system.
+    const detailSummary = this.formatFleetDataForPrompt(fleetData);
 
-Current Fleet Data:
+    return `You are a helpful Fleet Management AI Assistant for "FleetPro" system.
+    
+Current Fleet Status:
+${detailSummary}
+
+Fleet Overview Stats:
 - Total Vehicles: ${fleetData.vehicleCount || 0}
 - Total Drivers: ${fleetData.driverCount || 0}
-- Active Routes: ${fleetData.activeRoutes || 0}
-- Total Trips: ${fleetData.tripCount || 0}
+- Active Routes: ${fleetData.activeRoutesCount || 0}
+- Recent Trips Logged: ${fleetData.tripCount || 0}
 
 You help users with:
 1. Fleet management questions and guidance
@@ -216,15 +242,12 @@ You help users with:
 5. Best practices for fleet operations
 
 Guidelines:
-- Be concise and practical
-- Provide specific numbers when available
-- Suggest actionable improvements
-- Recommend relevant actions in the app
-- Use role-appropriate language for ${userRole} users
-- Default to helpful, friendly tone
+- Be concise and practical. Use specific numbers and names from the provided data.
+- If a user asks about moving vehicles, check the active routes and vehicle statuses.
+- If a user asks for driver info, provide names, license numbers, and assigned vehicles.
+- Suggest actionable improvements based on the real data provided.
+- Default to a helpful, professional tone.
 
-When users ask data questions, provide specific insights from the fleet data.
-When something isn't working, offer step-by-step solutions.
 When possible, include expected benefits or cost savings.`;
   }
 
@@ -254,29 +277,35 @@ If you can't answer from the data provided, say so clearly.`;
 
     if (fleetData.vehicles?.length) {
       formatted += `VEHICLES (${fleetData.vehicleCount}):\n`;
-      const statuses = {};
-      fleetData.vehicles.forEach(v => {
-        statuses[v.status] = (statuses[v.status] || 0) + 1;
+      fleetData.vehicles.slice(0, 15).forEach(v => {
+        formatted += `- ${v.registration} (${v.make} ${v.model}): Status ${v.status}, Driver: ${v.driver}\n`;
       });
-      Object.entries(statuses).forEach(([status, count]) => {
-        formatted += `- ${status}: ${count} vehicles\n`;
-      });
+      if (fleetData.vehicleCount > 15) formatted += `- ... and ${fleetData.vehicleCount - 15} more.\n`;
     }
 
     if (fleetData.drivers?.length) {
       formatted += `\nDRIVERS (${fleetData.driverCount}):\n`;
-      const avgSafety = (fleetData.drivers.reduce((sum, d) => sum + (d.safetyRating || 0), 0) / fleetData.driverCount).toFixed(1);
-      formatted += `- Average Safety Rating: ${avgSafety}/10\n`;
-      formatted += `- Average Experience: ${(fleetData.drivers.reduce((sum, d) => sum + (d.yearsExperience || 0), 0) / fleetData.driverCount).toFixed(1)} years\n`;
+      fleetData.drivers.slice(0, 15).forEach(d => {
+        formatted += `- ${d.name}: Status ${d.status}, Lic: ${d.licenseNumber}, Vehicle: ${d.vehicle}\n`;
+      });
+      if (fleetData.driverCount > 15) formatted += `- ... and ${fleetData.driverCount - 15} more.\n`;
+    }
+
+    if (fleetData.activeRoutes?.length) {
+      formatted += `\nACTIVE ROUTES (${fleetData.activeRoutesCount}):\n`;
+      fleetData.activeRoutes.forEach(r => {
+        formatted += `- ${r.code}: ${r.start} to ${r.end} (${r.status})\n`;
+      });
     }
 
     if (fleetData.recentTrips?.length) {
-      formatted += `\nRECENT TRIPS (Last 10):\n`;
+      formatted += `\nRECENT TRIP STATS:\n`;
       const totalDistance = fleetData.recentTrips.reduce((sum, t) => sum + (t.distance || 0), 0);
       const totalFuel = fleetData.recentTrips.reduce((sum, t) => sum + (t.fuelUsed || 0), 0);
-      formatted += `- Total Distance: ${totalDistance}km\n`;
-      formatted += `- Average Fuel Used: ${(totalFuel / fleetData.recentTrips.length).toFixed(2)}L\n`;
-      formatted += `- Fuel Efficiency: ${((totalDistance / totalFuel) || 0).toFixed(2)} km/L\n`;
+      formatted += `- Total Distance (last 10): ${totalDistance.toFixed(1)}km\n`;
+      if (totalFuel > 0) {
+        formatted += `- Avg Efficiency: ${(totalDistance / totalFuel).toFixed(2)} km/L\n`;
+      }
     }
 
     return formatted;
@@ -288,9 +317,13 @@ If you can't answer from the data provided, say so clearly.`;
    * @returns {Boolean} Is query or conversation
    */
   isDataQuery(message) {
-    const queryKeywords = ['show', 'how many', 'which', 'what', 'total', 'list', 'compare', 'average', 'highest', 'lowest', 'best', 'worst'];
+    const queryKeywords = ['show', 'how many', 'which', 'what', 'total', 'list', 'compare', 'average', 'highest', 'lowest', 'best', 'worst', 'current', 'who'];
     const lower = message.toLowerCase();
-    return queryKeywords.some(keyword => lower.includes(keyword)) && message.includes('?');
+    // Also consider it a query if it contains vehicle/driver/route terms
+    const fleetTerms = ['vehicle', 'driver', 'route', 'trip', 'moving', 'active'];
+    const hasKeyword = queryKeywords.some(keyword => lower.includes(keyword));
+    const hasTerm = fleetTerms.some(term => lower.includes(term));
+    return (hasKeyword || hasTerm) && (message.includes('?') || lower.length < 50);
   }
 
   /**
@@ -361,31 +394,60 @@ If you can't answer from the data provided, say so clearly.`;
   }
 
   /**
-   * Call Gemini API with retry logic and fallback
-   * @param {String} prompt - Prompt string
+   * Call AI API (Gemini) with retry logic and fallback if it fails or API key is missing
+   * @param {Array} messages - Messages array
    * @returns {Promise<Object>} Response
    */
-  async callGemini(prompt) {
-    if (!this.apiKey || String(this.apiKey).trim() === '') {
-      logger.info('No Gemini Key set, using mock AI assistant response.');
-      return this._mockGeminiResponse(prompt);
+  async callAI(messages) {
+    if (!this.aiKey || String(this.aiKey).trim() === '') {
+      logger.info('No AI Key set, using mock AI assistant response.');
+      return this._mockAIResponse(messages);
     }
     const maxRetries = 3;
     let lastError = null;
 
+    let systemInstruction = null;
+    const contents = [];
+    let currentRole = null;
+    let currentParts = [];
+
+    messages.forEach(msg => {
+      if (msg.role === 'system') {
+        systemInstruction = { parts: [{ text: msg.content }] };
+      } else {
+        const role = msg.role === 'assistant' ? 'model' : 'user';
+        if (currentRole !== role) {
+          if (currentRole !== null) {
+            contents.push({ role: currentRole, parts: currentParts });
+          }
+          currentRole = role;
+          currentParts = [{ text: msg.content }];
+        } else {
+          currentParts.push({ text: '\n\n' + msg.content });
+        }
+      }
+    });
+
+    if (currentRole !== null) {
+      contents.push({ role: currentRole, parts: currentParts });
+    }
+
+    const payload = {
+      contents,
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 1000
+      }
+    };
+    if (systemInstruction) {
+      payload.systemInstruction = systemInstruction;
+    }
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const response = await axios.post(
-          `${this.baseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`,
-          {
-            contents: [{
-              parts: [{ text: prompt }]
-            }],
-            generationConfig: {
-              temperature: 0.7,
-              maxOutputTokens: 1000,
-            }
-          },
+          `${this.baseUrl}/models/${this.aiModel}:generateContent?key=${this.aiKey}`,
+          payload,
           {
             headers: {
               'Content-Type': 'application/json'
@@ -394,22 +456,23 @@ If you can't answer from the data provided, say so clearly.`;
           }
         );
 
-        const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!content) {
-          throw new Error('Invalid Gemini API response structure');
+        const contentText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!contentText) {
+          throw new Error('Invalid API response structure');
         }
 
         return {
-          content: content.trim(),
-          tokens: 0 // Gemini usage info is in a different format, skipping for now
+          content: contentText.trim(),
+          tokens: 0
         };
       } catch (error) {
         lastError = error;
-        logger.warn(`Gemini call attempt ${attempt} failed`, { error: error.message, details: error.response?.data });
+        logger.warn(`AI call attempt ${attempt} failed`, { error: error.message });
 
-        if (error.response?.status === 401 || error.response?.status === 403 || error.response?.status === 400) {
-          logger.warn('Auth or Request error with Gemini API, falling back to mock response');
-          return this._mockGeminiResponse(prompt);
+        if (error.response?.status === 401 || error.response?.status === 403) {
+          logger.warn('Authentication failed with AI API, falling back to mock response');
+          return this._mockAIResponse(messages);
         }
 
         if (attempt < maxRetries) {
@@ -418,26 +481,42 @@ If you can't answer from the data provided, say so clearly.`;
       }
     }
 
-    logger.warn(`Gemini API call failed after ${maxRetries} attempts, falling back to mock response`, { error: lastError.message });
-    return this._mockGeminiResponse(prompt);
+    logger.warn(`AI API call failed after ${maxRetries} attempts, falling back to mock response`, { error: lastError?.message });
+    return this._mockAIResponse(messages);
   }
 
   /**
    * Mock response to gracefully handle missing / failed API key 
    */
-  _mockGeminiResponse(prompt) {
-    const isQuery = prompt.toLowerCase().includes('?') || prompt.toLowerCase().includes('show') || prompt.toLowerCase().includes('how many');
-    let content = isQuery
-      ? 'Based on the fleet data, your vehicles are operating normally with stable fuel consumption.'
-      : 'Hello! I am your AI Fleet Assistant powered by Gemini. How can I help you today?';
+  _mockAIResponse(messages) {
+    // Try to find the system prompt to extract current data
+    const systemMsg = messages.find(m => m.role === 'system')?.content || '';
+    const lastMessage = messages[messages.length - 1]?.content || '';
+    const lowerMsg = lastMessage.toLowerCase();
 
-    // Add mock recommendations if requested
-    if (prompt.toLowerCase().includes('recommend')) {
-      content += '\n\n1. COST_SAVING: Review idle times for fleet vehicles to reduce fuel waste.\n2. SAFETY: Schedule standard maintenance for older vehicles.\n3. EFFICIENCY: Opt for earlier dispatch times in heavy traffic zones.';
+    // extract counts from system message if possible
+    const vMatch = systemMsg.match(/Total Vehicles: (\d+)/);
+    const dMatch = systemMsg.match(/Total Drivers: (\d+)/);
+    const rMatch = systemMsg.match(/Active Routes: (\d+)/);
+
+    const vCount = vMatch ? vMatch[1] : '?';
+    const dCount = dMatch ? dMatch[1] : '?';
+    const rCount = rMatch ? rMatch[1] : '?';
+
+    let content = `Hello! I'm your FleetPro Assistant. Currently, I see ${vCount} vehicles, ${dCount} drivers, and ${rCount} active routes in your system.`;
+
+    if (lowerMsg.includes('vehicle') || lowerMsg.includes('moving')) {
+      if (rCount === '0' || rCount === 0) {
+        content = `There are currently no vehicles actively on a moving trip. Our records show ${vCount} vehicles in total, but none are assigned to an 'active' route right now.`;
+      } else {
+        content = `I see ${rCount} active route(s) in progress. You can check the real-time map to see the exact locations of your moving vehicles.`;
+      }
+    } else if (lowerMsg.includes('driver')) {
+      content = `You have ${dCount} drivers registered in your fleet. You can see their full details and performance ratings in the Drivers section.`;
     }
 
     return {
-      content,
+      content: content + "\n\n(Note: I'm currently running in low-power mode but accessing your real-time stats.)",
       tokens: 0
     };
   }

@@ -37,16 +37,18 @@ function normalizeId(obj: any): any {
 // VEHICLES
 // =====================
 export const vehiclesApi = {
-    getAll: async (params?: Record<string, any>): Promise<Vehicle[]> => {
+    getAll: async (params?: Record<string, any>): Promise<any> => {
         // Filter out undefined and null values to avoid sending "undefined" strings
         const cleanParams = params ? Object.fromEntries(
             Object.entries(params).filter(([, v]) => v !== undefined && v !== null)
         ) : {};
         const query = Object.keys(cleanParams).length > 0 ? "?" + new URLSearchParams(cleanParams).toString() : "";
         const res: any = await request(`/api/vehicles${query}`);
-        // Handle both direct array and nested vehicles response, then normalize IDs
-        const vehicles = Array.isArray(res) ? res : (res?.vehicles || []);
-        return normalizeId(vehicles);
+        // Return the full paginated response so callers can access total, pages, globalStats
+        // If it's a direct array (legacy), return as-is
+        if (Array.isArray(res)) return normalizeId(res);
+        if (res.vehicles) res.vehicles = normalizeId(res.vehicles);
+        return res;
     },
     getById: async (id: string): Promise<Vehicle> => {
         const res = await request(`/api/vehicles/${id}`);
@@ -176,6 +178,14 @@ export const routesApi = {
     },
     delete: async (id: string): Promise<{ success: boolean }> =>
         request(`/api/routes/${id}`, { method: "DELETE" }),
+    updateStatus: async (id: string, status: string): Promise<Route> => {
+        const res = await request(`/api/routes/${id}`, { method: "PUT", body: JSON.stringify({ status }) });
+        return normalizeId(res.route || res);
+    },
+    update: async (id: string, data: Partial<Route>): Promise<Route> => {
+        const res = await request(`/api/routes/${id}`, { method: "PUT", body: JSON.stringify(data) });
+        return normalizeId(res.route || res);
+    },
     optimize: async (data: any) =>
         request(`/api/routes/optimize`, { method: "POST", body: JSON.stringify(data) }),
 };

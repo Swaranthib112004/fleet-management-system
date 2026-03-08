@@ -79,7 +79,7 @@ const createPinIcon = (status: string, isSelected: boolean) => {
         A ${bulbR} ${bulbR} 0 1 1 ${cx + bulbR} ${bulbCY}
         C ${cx + bulbR} ${bulbCY + bulbR * 0.4}, ${cx + 2} ${tipY - 6}, ${cx} ${tipY}
         Z
-      " fill="${c.body}"/>
+      " fill="${c.body}" stroke="white" stroke-width="2"/>
       <circle cx="${cx}" cy="${bulbCY}" r="${innerR}" fill="white" opacity="0.95"/>
     </g>
   </svg>`;
@@ -135,7 +135,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const dy = dest.lng - start.lng;
     if (dx * dx + dy * dy < 1e-12) return;
 
-    const duration = 2200; // slightly longer than update interval for smooth feel
+    const duration = 600; // Shorter than update interval (1000ms) to ensure snappy catch-up
     const startTime = performance.now();
 
     const step = (now: number) => {
@@ -248,7 +248,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           </div>
         `;
 
-        const m = L.marker([v.lat, v.lng], { icon })
+        const m = L.marker([v.lat, v.lng], {
+          icon,
+          zIndexOffset: isSelected ? 2000 : 1000
+        })
           .addTo(map)
           .bindPopup(popupContent, {
             className: "fleet-popup",
