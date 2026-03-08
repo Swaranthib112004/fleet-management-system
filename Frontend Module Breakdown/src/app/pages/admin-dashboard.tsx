@@ -27,10 +27,10 @@ export function AdminDashboard() {
       setLoading(true);
       try {
         const [vResp, dResp, mResp, rResp, aResp] = await Promise.allSettled([
-          vehiclesApi.getAll(),
-          driversApi.getAll(),
-          maintenanceApi.getAll(),
-          routesApi.getAll(),
+          vehiclesApi.getAll({ limit: 1000 }),
+          driversApi.getAll({ limit: 1000 }),
+          maintenanceApi.getAll({ limit: 1000 }),
+          routesApi.getAll({ limit: 1000 }),
           auditApi.getAll(),
         ]);
         if (vResp.status === "fulfilled") {
