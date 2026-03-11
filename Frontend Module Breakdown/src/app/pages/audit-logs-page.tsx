@@ -4,15 +4,16 @@ import { motion } from "motion/react";
 import { cn } from "../lib/utils";
 import { auditApi } from "../lib/api";
 import type { AuditLog } from "../lib/types";
+import { useAuth } from "../lib/auth";
 
 const POLL_INTERVAL_MS = 4000;
 
 export function AuditLogsPage() {
+   const { user } = useAuth();
    const [logs, setLogs] = React.useState<AuditLog[]>([]);
    const [loading, setLoading] = React.useState(true);
    const [lastFetched, setLastFetched] = React.useState<Date | null>(null);
    const [actionFilter, setActionFilter] = React.useState("");
-   const [userFilter, setUserFilter] = React.useState("");
    const [dateFrom, setDateFrom] = React.useState("");
    const [dateTo, setDateTo] = React.useState("");
    const [search, setSearch] = React.useState("");
@@ -22,7 +23,7 @@ export function AuditLogsPage() {
 
    const loadLogs = React.useCallback(async () => {
       try {
-         const list = await auditApi.getAll();
+         const list: any = await auditApi.getAll();
          setLogs(Array.isArray(list) ? list : (list?.audit || list?.logs || []));
          setLastFetched(new Date());
       } catch (err: any) {
@@ -44,13 +45,13 @@ export function AuditLogsPage() {
       return ["", ...Array.from(set).sort()];
    }, [logs]);
 
-   const userOptions = React.useMemo(() => {
-      const set = new Set(logs.map((l) => getUserName(l.user)).filter(Boolean));
-      return ["", ...Array.from(set).sort()];
-   }, [logs]);
-
    const filtered = logs.filter((log) => {
       const userName = getUserName(log.user).toLowerCase();
+      const currentUserName = (user?.name || user?.email || "System").toLowerCase();
+      
+      // Strict filter: only show logs for the currently logged-in user
+      if (userName !== currentUserName) return false;
+
       const action = (log.action || "").toLowerCase();
       const target = (log.target || "").toLowerCase();
       if (search) {
@@ -58,7 +59,6 @@ export function AuditLogsPage() {
          if (!userName.includes(q) && !action.includes(q) && !target.includes(q)) return false;
       }
       if (actionFilter && (log.action || "") !== actionFilter) return false;
-      if (userFilter && getUserName(log.user) !== userFilter) return false;
       if (dateFrom) {
          const d = log.createdAt ? new Date(log.createdAt).toISOString().slice(0, 10) : "";
          if (d < dateFrom) return false;
@@ -78,7 +78,7 @@ export function AuditLogsPage() {
       return "bg-gray-50 text-gray-600";
    };
 
-   const hasFilters = search || actionFilter || userFilter || dateFrom || dateTo;
+   const hasFilters = search || actionFilter || dateFrom || dateTo;
 
    return (
       <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
@@ -123,16 +123,6 @@ export function AuditLogsPage() {
                   <option key={a} value={a}>{a}</option>
                ))}
             </select>
-            <select
-               value={userFilter}
-               onChange={(e) => setUserFilter(e.target.value)}
-               className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium bg-white focus:border-blue-300 outline-none min-w-[120px]"
-            >
-               <option value="">All users</option>
-               {userOptions.filter(Boolean).map((u) => (
-                  <option key={u} value={u}>{u}</option>
-               ))}
-            </select>
             <input
                type="date"
                value={dateFrom}
@@ -158,7 +148,7 @@ export function AuditLogsPage() {
                />
                {hasFilters && (
                   <button
-                     onClick={() => { setSearch(""); setActionFilter(""); setUserFilter(""); setDateFrom(""); setDateTo(""); }}
+                     onClick={() => { setSearch(""); setActionFilter(""); setDateFrom(""); setDateTo(""); }}
                      className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-white transition-colors"
                      title="Clear filters"
                   >

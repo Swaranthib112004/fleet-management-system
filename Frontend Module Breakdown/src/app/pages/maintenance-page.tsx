@@ -230,7 +230,7 @@ export function MaintenancePage() {
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
                >
                   <Plus size={18} />
-                  Add Log
+                  Add Service
                </button>
             </div>
          </div>
@@ -559,7 +559,7 @@ export function MaintenancePage() {
                         <div className="pt-6 border-t border-gray-100 flex gap-4">
                            <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 rounded-2xl border border-gray-200 font-bold hover:bg-gray-50 transition-all">Cancel</button>
                            <button type="submit" className="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-100">
-                              {editingLog ? "Save Changes" : "Add Log"}
+                              {editingLog ? "Save Changes" : "Add Service"}
                            </button>
                         </div>
                      </form>
