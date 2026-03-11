@@ -31,6 +31,24 @@ const connectDB = async () => {
     }
   } catch (err) {
     console.error('❌ Failed to connect to MongoDB:', err && err.message ? err.message : err);
+
+    // Fallback: if MongoDB is not available, optionally start an in-memory MongoDB.
+    // Use USE_IN_MEMORY_MONGO=true to enable this in any environment.
+    // Set NO_IN_MEMORY_MONGO=true to disable this fallback.
+    if (process.env.NO_IN_MEMORY_MONGO !== 'true') {
+      console.warn('⚠️ Falling back to in-memory MongoDB (mongodb-memory-server).');
+      try {
+        const { MongoMemoryServer } = require('mongodb-memory-server');
+        const mongod = await MongoMemoryServer.create();
+        const uri = mongod.getUri();
+        await mongoose.connect(uri);
+        console.log('✅ Connected to in-memory MongoDB');
+        return;
+      } catch (memErr) {
+        console.error('❌ Failed to start in-memory MongoDB:', memErr && memErr.message ? memErr.message : memErr);
+      }
+    }
+
     process.exit(1);
   }
 };

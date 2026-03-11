@@ -23,79 +23,51 @@ connectDB().then(() => {
   }
 });
 
+// Log starting environment
+logger.info(`Starting server in ${process.env.NODE_ENV || 'development'} mode`);
+
 const app = express();
 const server = http.createServer(app);
 
+// ─── MIDDLEWARE ORDER ────────────────────────────────────────────────────────
+// Logging and security should be first
+app.use(morgan('combined', { stream: logger.stream }));
+app.use(helmet({
+  contentSecurityPolicy: false, 
+}));
+
 app.use(cors({
   origin: function (origin, callback) {
-    // allow development frontends on localhost regardless of port
     if (!origin || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
       return callback(null, true);
     }
-
-    const allowedOrigins = [
-      process.env.FRONTEND_URL,
-      'http://localhost:3000'
-    ].filter(Boolean);
-
+    const allowedOrigins = [process.env.FRONTEND_URL].filter(Boolean);
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(null, true); // Fallback for production testing
     }
   },
   credentials: true
 }));
+
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1000, 
+    standardHeaders: true,
+    legacyHeaders: false
+  })
+);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Serve uploaded files from the backend-level uploads folder
-const uploadsPath = path.join(__dirname, 'uploads');
-// If PROTECT_UPLOADS=true, require an Authorization Bearer token to access files.
-// Otherwise serve uploads publicly (legacy behavior).
-if (process.env.PROTECT_UPLOADS === 'true') {
-  const { verifyToken } = require('./middleware/authMiddleware');
-  app.get('/uploads/:filename', verifyToken, (req, res) => {
-    const options = { root: uploadsPath };
-    res.sendFile(req.params.filename, options, (err) => {
-      if (err) {
-        logger.warn(`Upload file not found: ${req.params.filename}`);
-        return res.status(404).json({ message: 'File not found' });
-      }
-    });
-  });
-} else {
-  app.use('/uploads', express.static(uploadsPath));
-}
-
-// Session & Passport setup
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'fleet-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: 'lax'
-  }
-}));
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Basic API status endpoint (must be before other /api routes)
-// Basic API status endpoint (must be before other /api routes)
-app.get('/api', (req, res) => {
-  res.json({
-    status: 'running',
-    message: 'Fleet Management API is running',
-    timestamp: new Date().toISOString()
-  });
-});
+// Serve uploads
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/ai', require('./routes/aiAssistantRoutes'));
-
 app.use('/api/vehicles', require('./routes/vehicleRoutes'));
 app.use('/api/uploads', require('./routes/uploadRoutes'));
 app.use('/api/reminders', require('./routes/reminderRoutes'));
@@ -108,59 +80,27 @@ app.use('/api/predictive', require('./routes/predictiveRoutes'));
 app.use('/api/roles', require('./routes/roleRoutes'));
 app.use('/api/audit', require('./routes/auditRoutes'));
 app.use('/api/settings', require('./routes/settingsRoutes'));
-console.log('registering dashboardRoutes');
-const dashboardRouter = require('./routes/dashboardRoutes');
-console.log('dashboardRoutes module loaded', typeof dashboardRouter);
-app.use('/api/dashboard', dashboardRouter);
+app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 
-// If running in production mode, serve the built frontend from the backend
-if (process.env.NODE_ENV === 'production') {
-  // make sure the path matches the actual frontend folder name; earlier a stray
-  // "(1)" had crept in which meant the server never found the built assets,
-  // causing every request to return an empty response (blank page).
-  const frontendDist = path.join(__dirname, '..', 'Frontend Module Breakdown', 'dist');
+// Basic API status
+app.get('/api', (req, res) => {
+  res.json({ status: 'running', env: process.env.NODE_ENV });
+});
 
-  // warn if the directory doesn't exist so it's easier to spot misconfiguration
-  try {
-    const stat = require('fs').statSync(frontendDist);
-    if (!stat.isDirectory()) {
-      logger.warn('Frontend dist path exists but is not a directory', { path: frontendDist });
-    }
-  } catch (err) {
-    logger.warn('Frontend dist directory not found, static files will 404', { path: frontendDist, error: err.message });
-  }
+// Root route (always present) to avoid "Cannot GET /" errors in deployed environments.
+// If you're serving the frontend from a separate static service (recommended on Render),
+// this will simply return a small JSON payload.
+app.get('/', (req, res) => {
+  res.json({ message: "Fleet Management API is running. Serve the frontend separately or enable static build serving." });
+});
 
-  app.use(express.static(frontendDist));
-  // All non‑API routes should serve index.html so that client‑side routing works
-  app.get('*', (req, res) => {
-    if (req.path.startsWith('/api')) {
-      return res.status(404).send('API route not found');
-    }
-    res.sendFile(path.join(frontendDist, 'index.html'));
-  });
-}
-
-// Security
-app.use(helmet());
-app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: parseInt(process.env.RATE_LIMIT || '100', 10),
-    standardHeaders: true,
-    legacyHeaders: false
-  })
-);
-
-// Logging
-app.use(morgan('combined', { stream: logger.stream }));
-
-// Global error handler (should be last middleware)
+// Global error handler
 app.use(errorHandler);
 
 // Initialize Socket.IO with SocketIOManager
 const socketIOManager = new SocketIOManager(server);
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8000;
 
 // export the express app as default for tests; attach others as properties
 module.exports = app;

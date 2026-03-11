@@ -169,7 +169,7 @@ export function AdminDashboard() {
     { icon: BarChart3, label: "Analytics", desc: "Fleet performance insights", path: "/app/analytics", color: "from-pink-500 to-pink-700", count: null },
     { icon: FileText, label: "Documents", desc: "Insurance, licenses & reports", path: "/app/documents", color: "from-cyan-500 to-cyan-700", count: null },
     { icon: Settings, label: "System Settings", desc: "Roles, notifications & config", path: "/app/settings", color: "from-slate-500 to-slate-700", count: null },
-    { icon: Shield, label: "Audit Logs", desc: "System activity & security", path: "/app/settings", color: "from-rose-500 to-rose-700", count: auditLogs.length },
+    { icon: Shield, label: "Audit Logs", desc: "System activity & security", path: "/app/audit-logs", color: "from-rose-500 to-rose-700", count: auditLogs.length },
   ];
 
   if (loading) {
@@ -207,12 +207,12 @@ export function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Vehicles */}
         <motion.div
-           initial={{ opacity: 0, y: 20 }}
-           animate={{ opacity: 1, y: 0 }}
-           whileHover={{ y: -6, scale: 1.02 }}
-           transition={{ delay: 0.1 }}
-           onClick={() => navigate("/app/fleet/vehicles")}
-           className="group relative overflow-hidden bg-white/70 backdrop-blur-xl p-7 rounded-[2rem] border border-gray-200/60 shadow-sm hover:shadow-lg hover:bg-white/90 hover:border-blue-200/60 transition-all cursor-pointer"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileHover={{ y: -6, scale: 1.02 }}
+          transition={{ delay: 0.1 }}
+          onClick={() => navigate("/app/fleet/vehicles")}
+          className="group relative overflow-hidden bg-white/70 backdrop-blur-xl p-7 rounded-[2rem] border border-gray-200/60 shadow-sm hover:shadow-lg hover:bg-white/90 hover:border-blue-200/60 transition-all cursor-pointer"
         >
           {/* colored left accent bar */}
           <div className="absolute left-0 top-6 bottom-6 w-1 rounded-full bg-blue-500 opacity-80 group-hover:opacity-100 transition-opacity" />
@@ -222,13 +222,16 @@ export function AdminDashboard() {
             <Truck size={110} className="text-blue-400" />
           </div>
           <div className="flex items-center gap-5 mb-5 relative z-10">
-            {/* Ring icon */}
-            <div className="w-14 h-14 rounded-full border-2 border-blue-200 bg-blue-50/60 text-blue-600 flex items-center justify-center group-hover:border-blue-400 group-hover:bg-blue-50 transition-all">
-              <Truck size={24} />
+            {/* Logo-style Icon */}
+            <div className="w-14 h-14 rounded-2xl border border-blue-100 bg-white text-blue-600 flex items-center justify-center group-hover:border-blue-300 group-hover:shadow-md transition-all shadow-sm">
+              <div className="relative">
+                <Truck size={26} strokeWidth={2.5} />
+                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-blue-500 rounded-full border-2 border-white shadow-sm" />
+              </div>
             </div>
             <div>
               <h3 className="text-gray-400 font-bold text-[10px] uppercase tracking-[0.12em] mb-0.5">Total Vehicles</h3>
-              <p className="text-4xl font-extrabold text-blue-600 leading-none tabular-nums">{effectiveVehicleCount}</p>
+              <p className="text-4xl font-extrabold text-blue-600 leading-none tabular-nums tracking-tighter">{effectiveVehicleCount}</p>
             </div>
           </div>
           <div className="pt-4 border-t border-gray-200/50 flex items-center justify-between text-sm relative z-10">
@@ -239,12 +242,12 @@ export function AdminDashboard() {
 
         {/* Drivers */}
         <motion.div
-           initial={{ opacity: 0, y: 20 }}
-           animate={{ opacity: 1, y: 0 }}
-           whileHover={{ y: -6, scale: 1.02 }}
-           transition={{ delay: 0.2 }}
-           onClick={() => navigate("/app/fleet/drivers")}
-           className="group relative overflow-hidden bg-white/70 backdrop-blur-xl p-7 rounded-[2rem] border border-gray-200/60 shadow-sm hover:shadow-lg hover:bg-white/90 hover:border-emerald-200/60 transition-all cursor-pointer"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileHover={{ y: -6, scale: 1.02 }}
+          transition={{ delay: 0.2 }}
+          onClick={() => navigate("/app/fleet/drivers")}
+          className="group relative overflow-hidden bg-white/70 backdrop-blur-xl p-7 rounded-[2rem] border border-gray-200/60 shadow-sm hover:shadow-lg hover:bg-white/90 hover:border-emerald-200/60 transition-all cursor-pointer"
         >
           {/* colored left accent bar */}
           <div className="absolute left-0 top-6 bottom-6 w-1 rounded-full bg-emerald-500 opacity-80 group-hover:opacity-100 transition-opacity" />
@@ -254,13 +257,16 @@ export function AdminDashboard() {
             <Users size={110} className="text-emerald-400" />
           </div>
           <div className="flex items-center gap-5 mb-5 relative z-10">
-            {/* Ring icon */}
-            <div className="w-14 h-14 rounded-full border-2 border-emerald-200 bg-emerald-50/60 text-emerald-600 flex items-center justify-center group-hover:border-emerald-400 group-hover:bg-emerald-50 transition-all">
-              <Users size={24} />
+            {/* Logo-style Icon */}
+            <div className="w-14 h-14 rounded-2xl border border-emerald-100 bg-white text-emerald-600 flex items-center justify-center group-hover:border-emerald-300 group-hover:shadow-md transition-all shadow-sm">
+              <div className="relative">
+                <Users size={26} strokeWidth={2.5} />
+                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white shadow-sm" />
+              </div>
             </div>
             <div>
               <h3 className="text-gray-400 font-bold text-[10px] uppercase tracking-[0.12em] mb-0.5">Active Drivers</h3>
-              <p className="text-4xl font-extrabold text-emerald-600 leading-none tabular-nums">{effectiveDriverCount}</p>
+              <p className="text-4xl font-extrabold text-emerald-600 leading-none tabular-nums tracking-tighter">{effectiveDriverCount}</p>
             </div>
           </div>
           <div className="pt-4 border-t border-gray-200/50 flex items-center justify-between text-sm relative z-10">
@@ -271,12 +277,12 @@ export function AdminDashboard() {
 
         {/* Reminders */}
         <motion.div
-           initial={{ opacity: 0, y: 20 }}
-           animate={{ opacity: 1, y: 0 }}
-           whileHover={{ y: -6, scale: 1.02 }}
-           transition={{ delay: 0.3 }}
-           onClick={() => navigate("/app/maintenance")}
-           className="group relative overflow-hidden bg-white/70 backdrop-blur-xl p-7 rounded-[2rem] border border-gray-200/60 shadow-sm hover:shadow-lg hover:bg-white/90 hover:border-amber-200/60 transition-all cursor-pointer"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileHover={{ y: -6, scale: 1.02 }}
+          transition={{ delay: 0.3 }}
+          onClick={() => navigate("/app/maintenance")}
+          className="group relative overflow-hidden bg-white/70 backdrop-blur-xl p-7 rounded-[2rem] border border-gray-200/60 shadow-sm hover:shadow-lg hover:bg-white/90 hover:border-amber-200/60 transition-all cursor-pointer"
         >
           {/* colored left accent bar */}
           <div className="absolute left-0 top-6 bottom-6 w-1 rounded-full bg-amber-500 opacity-80 group-hover:opacity-100 transition-opacity" />
@@ -286,13 +292,16 @@ export function AdminDashboard() {
             <Bell size={110} className="text-amber-400" />
           </div>
           <div className="flex items-center gap-5 mb-5 relative z-10">
-            {/* Ring icon */}
-            <div className="w-14 h-14 rounded-full border-2 border-amber-200 bg-amber-50/60 text-amber-600 flex items-center justify-center group-hover:border-amber-400 group-hover:bg-amber-50 transition-all">
-              <Bell size={24} />
+            {/* Logo-style Icon */}
+            <div className="w-14 h-14 rounded-2xl border border-amber-100 bg-white text-amber-600 flex items-center justify-center group-hover:border-amber-300 group-hover:shadow-md transition-all shadow-sm">
+              <div className="relative">
+                <Bell size={26} strokeWidth={2.5} />
+                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white shadow-sm" />
+              </div>
             </div>
             <div>
               <h3 className="text-gray-400 font-bold text-[10px] uppercase tracking-[0.12em] mb-0.5">Pending Reminders</h3>
-              <p className="text-4xl font-extrabold text-amber-600 leading-none tabular-nums">
+              <p className="text-4xl font-extrabold text-amber-600 leading-none tabular-nums tracking-tighter">
                 {reminders.filter(r => r.status === "pending").length}
               </p>
             </div>
@@ -309,9 +318,13 @@ export function AdminDashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.35 }}
+        className="bg-white/40 backdrop-blur-md p-6 rounded-[2.5rem] border border-gray-100/80 shadow-sm"
       >
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.15em] mb-4">Quick Access</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="flex items-center justify-between mb-6">
+           <p className="text-[10px] font-black text-gray-400 upper-case tracking-[0.15em]">Management Hub</p>
+           <div className="h-[1px] flex-1 bg-gray-100 ml-4 opacity-50"></div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {quickActions.map((action, i) => (
             <motion.button
               key={action.label}
@@ -320,16 +333,18 @@ export function AdminDashboard() {
               whileHover={{ y: -5, scale: 1.03 }}
               transition={{ delay: 0.4 + i * 0.05 }}
               onClick={() => { navigate(action.path); }}
-              className="group relative p-4 rounded-2xl border text-left flex flex-col gap-2 cursor-pointer transition-all bg-white/60 backdrop-blur-xl border-white/80 shadow-sm hover:bg-white/80 hover:border-blue-100 hover:shadow-md overflow-hidden"
+              className="group relative p-5 rounded-[1.5rem] border text-left flex flex-col gap-3 cursor-pointer transition-all bg-white/80 backdrop-blur-xl border-gray-200/60 shadow-sm hover:bg-white hover:border-blue-200 hover:shadow-md overflow-hidden"
             >
-              <div className="absolute inset-0 bg-gradient-to-tr from-blue-50/0 via-white/20 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
-              <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white group-hover:scale-110 transition-transform", `bg-gradient-to-br ${action.color}`)}>
-                <action.icon size={20} />
+              <div className="absolute inset-0 bg-gradient-to-tr from-blue-50/0 via-white/40 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+              <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center text-white group-hover:scale-110 transition-transform shadow-sm", `bg-gradient-to-br ${action.color}`)}>
+                <action.icon size={22} />
               </div>
-              <div>
-                <p className="text-xs font-bold text-gray-800">{action.label}</p>
-                {action.count !== null && (
-                  <p className="text-[10px] text-gray-400 font-semibold">{action.count} items</p>
+              <div className="mt-1">
+                <p className="text-sm font-extrabold text-gray-900 leading-tight">{action.label}</p>
+                {action.count !== null ? (
+                  <p className="text-[10px] text-gray-400 font-bold mt-0.5">{action.count} active items</p>
+                ) : (
+                  <p className="text-[10px] text-gray-400 font-bold mt-0.5">Global configuration</p>
                 )}
               </div>
             </motion.button>
@@ -400,7 +415,7 @@ export function AdminDashboard() {
               <h3 className="font-extrabold text-gray-900">Recent Activity</h3>
             </div>
             <button
-              onClick={() => { navigate("/app/settings"); toast.info("Opening audit logs..."); }}
+              onClick={() => { navigate("/app/audit-logs"); toast.info("Opening audit logs..."); }}
               className="text-xs font-bold text-gray-400 hover:text-blue-600 transition-colors uppercase tracking-widest"
             >
               View All

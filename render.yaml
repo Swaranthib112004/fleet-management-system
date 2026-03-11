@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: fleet-management-system
+    env: node
+    plan: free # Can be updated based on user preference
+    buildCommand: npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: VITE_API_BASE
+        value: "" # Empty string for relative paths in production
+      - key: MONGODB_URI
+        sync: false # Set in Render Dashboard
+      - key: JWT_SECRET
+        sync: false # Set in Render Dashboard
+      - key: JWT_EXPIRES_IN
+        value: 1d
+      - key: FRONTEND_URL
+        sync: false # Set to the Render assigned URL (e.g. project-name.onrender.com)
+      - key: SESSION_SECRET
+        sync: false # Set in Render Dashboard
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
