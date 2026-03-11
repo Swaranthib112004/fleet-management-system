@@ -20,27 +20,19 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { cn } from "../lib/utils";
-import { notificationsApi, rolesApi, auditApi } from "../lib/api";
-import type { NotificationSetting, Role, AuditLog } from "../lib/types";
+import { notificationsApi, rolesApi } from "../lib/api";
+import type { NotificationSetting, Role } from "../lib/types";
 
 const TABS = [
    { id: "general", label: "General", icon: Globe },
    // { id: "roles", label: "User Roles", icon: User },
    { id: "notifications", label: "Notifications", icon: Bell },
-   { id: "security", label: "Security", icon: Shield },
-   { id: "audit", label: "Audit Logs", icon: FileSearch },
 ];
 
 export function SettingsPage() {
    const [activeTab, setActiveTab] = React.useState("general");
    const [notifications, setNotifications] = React.useState<NotificationSetting[]>([]);
    const [roles, setRoles] = React.useState<Role[]>([]);
-   const [auditLogs, setAuditLogs] = React.useState<AuditLog[]>([]);
-   const [auditFilter, setAuditFilter] = React.useState("");
-   const [auditActionFilter, setAuditActionFilter] = React.useState("");
-   const [auditUserFilter, setAuditUserFilter] = React.useState("");
-   const [auditDateFrom, setAuditDateFrom] = React.useState("");
-   const [auditDateTo, setAuditDateTo] = React.useState("");
    const [loadingData, setLoadingData] = React.useState(false);
 
    // General settings
@@ -49,12 +41,6 @@ export function SettingsPage() {
       timezone: "UTC",
       currency: "USD",
       dateFormat: "YYYY-MM-DD",
-   });
-
-   // Security settings
-   const [securitySettings, setSecuritySettings] = React.useState({
-      minPasswordLength: 12,
-      require2FA: true,
    });
 
    // Role modal
@@ -100,41 +86,6 @@ export function SettingsPage() {
       }
    };
 
-   const getUserName = (user: AuditLog['user']): string =>
-      typeof user === 'object' ? (user?.name || user?.email || 'System') : (user || 'System');
-
-   const auditActionOptions = React.useMemo(() => {
-      const set = new Set(auditLogs.map(l => (l.action || '').trim()).filter(Boolean));
-      return ['', ...Array.from(set).sort()];
-   }, [auditLogs]);
-
-   const auditUserOptions = React.useMemo(() => {
-      const set = new Set(auditLogs.map(l => getUserName(l.user)).filter(Boolean));
-      return ['', ...Array.from(set).sort()];
-   }, [auditLogs]);
-
-   const filteredAuditLogs = auditLogs.filter((log) => {
-      const userName = getUserName(log.user).toLowerCase();
-      const action = (log.action || '').toLowerCase();
-      const target = (log.target || '').toLowerCase();
-
-      if (auditFilter) {
-         const q = auditFilter.toLowerCase();
-         if (!userName.includes(q) && !action.includes(q) && !target.includes(q)) return false;
-      }
-      if (auditActionFilter && (log.action || '') !== auditActionFilter) return false;
-      if (auditUserFilter && getUserName(log.user) !== auditUserFilter) return false;
-      if (auditDateFrom) {
-         const d = log.createdAt ? new Date(log.createdAt).toISOString().slice(0, 10) : '';
-         if (d < auditDateFrom) return false;
-      }
-      if (auditDateTo) {
-         const d = log.createdAt ? new Date(log.createdAt).toISOString().slice(0, 10) : '';
-         if (d > auditDateTo) return false;
-      }
-      return true;
-   });
-
    const reloadNotifications = async () => {
       try {
          const list = await notificationsApi.getAll();
@@ -153,19 +104,9 @@ export function SettingsPage() {
          setRoles([]);
       }
    };
-   const reloadAudit = async () => {
-      try {
-         const list = await auditApi.getAll();
-         setAuditLogs(list);
-      } catch (err: any) {
-         console.warn("Failed to load audit logs:", err.message);
-         setAuditLogs([]);
-      }
-   };
-
    React.useEffect(() => {
       setLoadingData(true);
-      Promise.all([reloadNotifications(), reloadRoles(), reloadAudit()])
+      Promise.all([reloadNotifications(), reloadRoles()])
          .finally(() => setLoadingData(false));
    }, []);
 
@@ -193,11 +134,13 @@ export function SettingsPage() {
                      key={tab.id}
                      onClick={() => setActiveTab(tab.id)}
                      className={cn(
-                        "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
-                        activeTab === tab.id ? "bg-blue-600 text-white shadow-lg shadow-blue-100" : "text-gray-500 hover:bg-gray-100"
+                        "group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all border",
+                        activeTab === tab.id
+                          ? "bg-blue-600 text-white shadow-lg shadow-blue-200/50 border-blue-600"
+                          : "text-gray-500 hover:bg-white/80 hover:text-gray-800 border-transparent hover:border-gray-200/80 hover:shadow-sm backdrop-blur-sm"
                      )}
                   >
-                     <tab.icon size={18} />
+                     <tab.icon size={18} className={activeTab !== tab.id ? "group-hover:scale-110 transition-transform" : ""} />
                      {tab.label}
                   </button>
                ))}
@@ -206,9 +149,9 @@ export function SettingsPage() {
             {/* Settings Content */}
             <div className="flex-1 space-y-8">
                {activeTab === "general" && (
-                  <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-8">
+                  <div className="bg-white/70 backdrop-blur-xl p-8 rounded-[2.5rem] border border-gray-200/80 shadow-sm space-y-8 hover:shadow-md transition-all">
                      <div>
-                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Globe size={20} className="text-blue-600" /> Organization Profile</h3>
+                        <h3 className="text-xl font-extrabold mb-6 flex items-center gap-2"><Globe size={20} className="text-blue-600" /> Organization Profile</h3>
                         <div className="grid md:grid-cols-2 gap-6">
                            <SettingsInput label="Company Name" value={generalSettings.companyName} onChange={(v) => setGeneralSettings((p) => ({ ...p, companyName: v }))} />
                            <SettingsInput label="Timezone" value={generalSettings.timezone} type="select" options={["UTC", "PST", "EST", "CET", "IST"]} onChange={(v) => setGeneralSettings((p) => ({ ...p, timezone: v }))} />
@@ -216,19 +159,19 @@ export function SettingsPage() {
                            <SettingsInput label="Date Format" value={generalSettings.dateFormat} type="select" options={["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY"]} onChange={(v) => setGeneralSettings((p) => ({ ...p, dateFormat: v }))} />
                         </div>
                      </div>
-                     <div className="pt-8 border-t border-gray-50">
-                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Database size={20} className="text-blue-600" /> Data Management</h3>
+                     <div className="pt-8 border-t border-gray-100">
+                        <h3 className="text-xl font-extrabold mb-6 flex items-center gap-2"><Database size={20} className="text-blue-600" /> Data Management</h3>
                         <div className="space-y-4">
-                           <div className="p-6 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-between">
+                           <div className="group p-6 rounded-2xl bg-gray-50/80 border border-gray-200/80 flex items-center justify-between hover:border-gray-300 hover:bg-white/80 hover:shadow-sm transition-all">
                               <div>
-                                 <p className="font-bold text-sm">System Backups</p>
+                                 <p className="font-extrabold text-sm">System Backups</p>
                                  <p className="text-xs text-gray-500 font-medium mt-1">Automatically backup database every 24 hours.</p>
                               </div>
-                              <button onClick={() => toast.success("Backup snapshot downloading...")} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-bold hover:bg-white transition-all">Download Snapshot</button>
+                              <button onClick={() => toast.success("Backup snapshot downloading...")} className="px-4 py-2 rounded-xl border border-gray-200/80 text-xs font-bold hover:bg-white hover:border-gray-300 hover:shadow-sm transition-all">Download Snapshot</button>
                            </div>
-                           <div className="p-6 rounded-2xl bg-red-50/30 border border-red-100 flex items-center justify-between">
+                           <div className="group p-6 rounded-2xl bg-red-50/30 border border-red-200/80 flex items-center justify-between hover:bg-red-50/50 hover:shadow-sm transition-all">
                               <div>
-                                 <p className="font-bold text-sm text-red-600">Danger Zone</p>
+                                 <p className="font-extrabold text-sm text-red-600">Danger Zone</p>
                                  <p className="text-xs text-red-500 font-medium mt-1">Permanent data deletion cannot be undone.</p>
                               </div>
                               <button
@@ -283,19 +226,19 @@ export function SettingsPage() {
                )}
 
                {activeTab === "notifications" && (
-                  <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
-                     <h3 className="text-xl font-bold mb-6">Alert Preferences</h3>
+                  <div className="bg-white/70 backdrop-blur-xl p-8 rounded-[2.5rem] border border-gray-200/80 shadow-sm space-y-4 hover:shadow-md transition-all">
+                     <h3 className="text-xl font-extrabold mb-6">Alert Preferences</h3>
                      {notifications.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between p-4 rounded-2xl border border-gray-50 hover:border-blue-100 transition-all">
+                        <div key={item.id} className="group flex items-center justify-between p-4 rounded-2xl border border-gray-200/80 hover:border-blue-200/80 hover:bg-blue-50/20 hover:shadow-sm transition-all">
                            <div>
-                              <p className="font-bold text-sm">{item.label}</p>
+                              <p className="font-extrabold text-sm">{item.label}</p>
                               <p className="text-xs text-gray-500 font-medium mt-0.5">{item.desc}</p>
                            </div>
                            <button
                               onClick={() => handleToggleNotification(item.id)}
                               className={cn(
-                                 "w-12 h-6 rounded-full transition-all relative flex items-center px-1 cursor-pointer",
-                                 item.enabled ? "bg-blue-600" : "bg-gray-200"
+                                 "w-12 h-6 rounded-full transition-all relative flex items-center px-1 cursor-pointer border",
+                                 item.enabled ? "bg-blue-600 border-blue-600" : "bg-gray-200 border-gray-300"
                               )}
                            >
                               <div className={cn("w-4 h-4 rounded-full bg-white shadow-sm transition-all", item.enabled ? "translate-x-6" : "translate-x-0")} />
@@ -306,59 +249,6 @@ export function SettingsPage() {
                )}
 
                {/* Removed roles tab and management UI */}
-               <div>
-                  <input type="checkbox" id="mfa" />
-                  <label htmlFor="mfa" className="text-sm font-bold text-gray-700 cursor-pointer">Require Two-Factor Authentication (2FA)</label>
-               </div>
-
-               {activeTab === "audit" && (
-                  <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
-                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <h3 className="text-xl font-bold">Audit Logs</h3>
-                        <div className="flex flex-wrap gap-2 items-center">
-                           <select value={auditActionFilter} onChange={(e) => setAuditActionFilter(e.target.value)} className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-bold bg-gray-50 focus:bg-white focus:border-blue-300 outline-none">
-                              <option value="">All actions</option>
-                              {auditActionOptions.filter(Boolean).map((a) => <option key={a} value={a}>{a}</option>)}
-                           </select>
-                           <select value={auditUserFilter} onChange={(e) => setAuditUserFilter(e.target.value)} className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-bold bg-gray-50 focus:bg-white focus:border-blue-300 outline-none min-w-[100px]">
-                              <option value="">All users</option>
-                              {auditUserOptions.filter(Boolean).map((u) => <option key={u} value={u}>{u}</option>)}
-                           </select>
-                           <input type="date" value={auditDateFrom} onChange={(e) => setAuditDateFrom(e.target.value)} className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-bold bg-gray-50 focus:bg-white focus:border-blue-300 outline-none" placeholder="From" />
-                           <input type="date" value={auditDateTo} onChange={(e) => setAuditDateTo(e.target.value)} className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-bold bg-gray-50 focus:bg-white focus:border-blue-300 outline-none" placeholder="To" />
-                           <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100 w-48">
-                              <FileSearch size={14} className="text-gray-400 shrink-0" />
-                              <input type="text" placeholder="Search..." value={auditFilter} onChange={(e) => setAuditFilter(e.target.value)} className="bg-transparent border-none focus:ring-0 text-xs outline-none w-full" />
-                              {(auditFilter || auditActionFilter || auditUserFilter || auditDateFrom || auditDateTo) && (
-                                 <button onClick={() => { setAuditFilter(""); setAuditActionFilter(""); setAuditUserFilter(""); setAuditDateFrom(""); setAuditDateTo(""); }} className="shrink-0 text-gray-400 hover:text-gray-600"><X size={12} /></button>
-                              )}
-                           </div>
-                        </div>
-                     </div>
-                     <div className="space-y-4">
-                        {filteredAuditLogs.length === 0 ? (
-                           <p className="text-center text-gray-400 font-medium py-8">
-                              {(auditFilter || auditActionFilter || auditUserFilter || auditDateFrom || auditDateTo) ? "No audit logs match the current filters." : "No audit logs yet."}
-                           </p>
-                        ) : (
-                           filteredAuditLogs.map((log) => (
-                              <div key={log.id} className="flex items-center justify-between text-xs py-2 border-b border-gray-50">
-                                 <div className="flex items-center gap-3">
-                                    <span className="font-bold text-gray-900">{getUserName(log.user)}</span>
-                                    <span className={cn(
-                                       "px-2 py-0.5 rounded uppercase tracking-tighter font-extrabold",
-                                       (log.action || '').includes("Delete") || (log.action || '').includes("delete") ? "bg-red-50 text-red-600" :
-                                          (log.action || '').includes("Creat") || (log.action || '').includes("Add") ? "bg-green-50 text-green-600" : "bg-blue-50 text-blue-600"
-                                    )}>{log.action}</span>
-                                    <span className="text-gray-400 font-bold">{log.target || ''}</span>
-                                 </div>
-                                 <span className="text-gray-400 font-bold">{log.createdAt ? new Date(log.createdAt).toLocaleDateString() : ''}</span>
-                              </div>
-                           ))
-                        )}
-                     </div>
-                  </div>
-               )}
             </div>
          </div>
 

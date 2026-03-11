@@ -170,12 +170,6 @@ export function FloatingChatWidget() {
           >
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <MessageSquare size={26} />
-              <span style={{
-                position: 'absolute', top: -6, right: -8, width: 10, height: 10,
-                background: '#22c55e', borderRadius: '50%',
-                boxShadow: '0 0 0 2px #fff',
-                animation: 'ping 1.5s cubic-bezier(0,0,0.2,1) infinite',
-              }} />
             </div>
           </motion.button>
         )}

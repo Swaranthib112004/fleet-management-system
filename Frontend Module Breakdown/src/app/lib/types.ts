@@ -59,6 +59,7 @@ export interface DocumentFile {
     type: string;
     size: string;
     date: string;
+    url?: string;
     category: "Insurance" | "License" | "Report" | "Registration" | "Compliance" | "Other";
 }
 

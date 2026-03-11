@@ -183,69 +183,70 @@ export function DriversPage() {
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {drivers.map((driver) => (
+        {drivers.map((driver, i) => (
           <motion.div
             key={driver.id}
             layout
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden"
+            whileHover={{ y: -6, scale: 1.01 }}
+            transition={{ delay: i * 0.06 }}
+            className="group bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-gray-200/80 shadow-sm hover:shadow-lg hover:bg-white/90 hover:border-blue-100/80 transition-all relative overflow-hidden"
           >
+            <div className="absolute inset-0 bg-gradient-to-tr from-blue-50/0 via-white/20 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
             {/* License Status Badge */}
-            <div className="absolute top-6 right-6">
+            <div className="absolute top-5 right-5">
               <span className={cn(
-                "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                new Date(driver.licenseExpiry) < new Date() ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
+                "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+                new Date(driver.licenseExpiry) < new Date()
+                  ? "bg-red-50 text-red-600 border-red-200"
+                  : "bg-emerald-50 text-emerald-600 border-emerald-200"
               )}>
                 {new Date(driver.licenseExpiry) < new Date() ? "Expired" : "Valid"}
               </span>
             </div>
 
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center text-xl font-bold text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
+            <div className="flex items-center gap-4 mb-6 relative z-10">
+              <div className="w-16 h-16 rounded-2xl bg-gray-100/80 border border-gray-200/80 flex items-center justify-center text-xl font-bold text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-100 transition-colors">
                 {driver.name.split(" ").map((n) => n[0]).join("")}
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900 leading-none mb-1">{driver.name}</h3>
-                <p className="text-xs text-gray-500 font-medium">{driver.licenseNumber}</p>
+                <h3 className="text-lg font-extrabold text-gray-900 leading-none mb-1">{driver.name}</h3>
+                <p className="text-xs text-gray-400 font-semibold">{driver.licenseNumber}</p>
               </div>
             </div>
 
-            <div className="space-y-4 mb-6 border-y border-gray-50 py-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500 font-medium">License</span>
-                <span className="font-bold text-gray-900">{driver.licenseNumber}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500 font-medium">Expiry</span>
-                <span className={cn("font-bold", new Date(driver.licenseExpiry) < new Date() ? "text-red-500" : "text-gray-900")}>
-                  {driver.licenseExpiry}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500 font-medium">Vehicle</span>
-                <span className="font-bold text-blue-600">{driver.assignedVehicle}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500 font-medium">Phone</span>
-                <span className="font-bold text-gray-900">{driver.contact.phone}</span>
-              </div>
+            <div className="space-y-3 mb-6 border-y border-gray-100/80 py-4 relative z-10">
+              {[
+                { label: "License", value: driver.licenseNumber },
+                { label: "Expiry", value: driver.licenseExpiry, warn: new Date(driver.licenseExpiry) < new Date() },
+                { label: "Vehicle", value: driver.assignedVehicle, blue: true },
+                { label: "Phone", value: driver.contact.phone },
+              ].map(item => (
+                <div key={item.label} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-400 font-semibold">{item.label}</span>
+                  <span className={cn(
+                    "font-bold",
+                    item.warn ? "text-red-500" : item.blue ? "text-blue-600" : "text-gray-800"
+                  )}>{item.value}</span>
+                </div>
+              ))}
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between relative z-10">
               <div className="flex items-center gap-2">
-                <a href={`tel:${driver.contact.phone}`} className="p-2.5 rounded-xl border border-gray-100 hover:bg-gray-50 transition-all text-gray-600">
+                <a href={`tel:${driver.contact.phone}`} className="p-2.5 rounded-xl border border-gray-200/80 hover:bg-blue-50 hover:border-blue-100 hover:text-blue-600 transition-all text-gray-500">
                   <Phone size={16} />
                 </a>
-                <a href={`mailto:${driver.contact.email}`} className="p-2.5 rounded-xl border border-gray-100 hover:bg-gray-50 transition-all text-gray-600">
+                <a href={`mailto:${driver.contact.email}`} className="p-2.5 rounded-xl border border-gray-200/80 hover:bg-blue-50 hover:border-blue-100 hover:text-blue-600 transition-all text-gray-500">
                   <Mail size={16} />
                 </a>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => openEditModal(driver)} className="p-2.5 rounded-xl border border-gray-100 hover:bg-gray-50 transition-all text-gray-600">
+                <button onClick={() => openEditModal(driver)} className="p-2.5 rounded-xl border border-gray-200/80 hover:bg-gray-100 hover:border-gray-300 transition-all text-gray-500">
                   <Edit2 size={16} />
                 </button>
-                <button onClick={() => handleDelete(driver.id, driver.name)} className="p-2.5 rounded-xl border border-red-50 hover:bg-red-50 transition-all text-red-500">
+                <button onClick={() => handleDelete(driver.id, driver.name)} className="p-2.5 rounded-xl border border-red-100/80 hover:bg-red-50 hover:border-red-200 transition-all text-red-400">
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -256,9 +257,9 @@ export function DriversPage() {
         {/* Add New Skeleton */}
         <button
           onClick={openAddModal}
-          className="h-full min-h-[300px] border-2 border-dashed border-gray-200 rounded-[2rem] flex flex-col items-center justify-center gap-4 text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50/20 transition-all"
+          className="h-full min-h-[300px] border-2 border-dashed border-gray-200/80 rounded-[2rem] flex flex-col items-center justify-center gap-4 text-gray-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/20 transition-all group"
         >
-          <div className="w-12 h-12 rounded-full border-2 border-current flex items-center justify-center">
+          <div className="w-12 h-12 rounded-full border-2 border-current flex items-center justify-center group-hover:scale-110 transition-transform">
             <Plus size={24} />
           </div>
           <span className="font-bold">Add New Driver</span>
@@ -266,23 +267,23 @@ export function DriversPage() {
       </div>
 
       {/* Pagination */}
-      <div className="p-6 border-t border-gray-50 flex justify-between items-center bg-gray-50/20">
-        <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">
+      <div className="p-5 rounded-2xl bg-white/60 backdrop-blur-xl border border-gray-200/80 flex justify-between items-center shadow-sm">
+        <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">
           Showing {drivers.length} of {totalCount} drivers
         </p>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-white transition-all disabled:text-gray-400 disabled:cursor-not-allowed"
+            className="px-4 py-2 rounded-xl border border-gray-200/80 text-sm font-bold text-gray-600 hover:bg-white hover:border-gray-300 transition-all disabled:text-gray-300 disabled:cursor-not-allowed"
           >
             Previous
           </button>
-          <span className="text-sm font-bold text-gray-500 px-2">{currentPage} / {totalPages}</span>
+          <span className="text-sm font-bold text-gray-400 px-2">{currentPage} / {totalPages}</span>
           <button
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-white transition-all disabled:text-gray-400 disabled:cursor-not-allowed"
+            className="px-4 py-2 rounded-xl border border-gray-200/80 text-sm font-bold text-gray-600 hover:bg-white hover:border-gray-300 transition-all disabled:text-gray-300 disabled:cursor-not-allowed"
           >
             Next
           </button>

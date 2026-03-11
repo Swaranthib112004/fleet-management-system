@@ -164,7 +164,7 @@ export function DocumentsPage() {
           console.warn('Error mapping document:', doc, mapErr);
           return null;
         }
-      }).filter((f: any) => f !== null);
+      }).filter((f) => f !== null) as DocumentFile[];
       setFiles(mapped);
     } catch (err: any) {
       console.error("Failed to load documents:", err?.message || err);
@@ -204,16 +204,16 @@ export function DocumentsPage() {
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
         className={cn(
-          "h-48 border-2 border-dashed rounded-[3rem] flex flex-col items-center justify-center transition-all gap-4 cursor-pointer",
-          isDragging ? "bg-blue-50 border-blue-400 text-blue-600 scale-[1.01]" : "bg-white border-gray-200 text-gray-400 hover:border-blue-300 hover:bg-blue-50/30"
+          "h-48 border-2 border-dashed rounded-[3rem] flex flex-col items-center justify-center transition-all gap-4 cursor-pointer group",
+          isDragging ? "bg-blue-50 border-blue-400 text-blue-600 scale-[1.01]" : "bg-white/70 backdrop-blur-xl border-gray-200/80 text-gray-400 hover:border-blue-300 hover:bg-blue-50/30"
         )}
       >
-        <div className="w-16 h-16 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-400">
+        <div className="w-16 h-16 rounded-full bg-gray-50/80 border border-gray-200/80 flex items-center justify-center text-gray-400 group-hover:scale-110 group-hover:bg-blue-50 group-hover:text-blue-500 group-hover:border-blue-100 transition-all">
           <Upload size={28} />
         </div>
         <div className="text-center">
-          <p className="font-bold text-lg text-gray-900 leading-none mb-2">Drag and drop files here</p>
-          <p className="text-sm font-medium text-gray-500 uppercase tracking-widest leading-none">or click to browse from computer</p>
+          <p className="font-extrabold text-lg text-gray-900 leading-none mb-2">Drag and drop files here</p>
+          <p className="text-sm font-medium text-gray-400 uppercase tracking-widest leading-none">or click to browse from computer</p>
         </div>
       </div>
 

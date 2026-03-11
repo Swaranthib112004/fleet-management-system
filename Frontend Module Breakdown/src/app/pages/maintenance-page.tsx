@@ -236,16 +236,16 @@ export function MaintenancePage() {
          </div>
 
          <div className="grid lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-               <div className="p-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex bg-gray-50 p-1 rounded-2xl border border-gray-100">
+            <div className="lg:col-span-2 bg-white/70 backdrop-blur-xl rounded-[2.5rem] border border-gray-200/80 shadow-sm overflow-hidden flex flex-col">
+               <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex bg-gray-50/80 backdrop-blur-sm p-1 rounded-2xl border border-gray-200/80">
                      {["logs", "calendar", "reminders"].map((v) => (
                         <button
                            key={v}
                            onClick={() => setActiveView(v)}
                            className={cn(
                               "px-6 py-2 rounded-xl text-sm font-bold capitalize transition-all",
-                              activeView === v ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                              activeView === v ? "bg-white text-blue-600 shadow-sm border border-gray-200/80" : "text-gray-500 hover:text-gray-700"
                            )}
                         >
                            {v}
@@ -253,7 +253,7 @@ export function MaintenancePage() {
                      ))}
                   </div>
                   <div className="flex items-center gap-2">
-                     <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100 w-56">
+                     <div className="flex items-center gap-2 bg-gray-50/80 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-gray-200/80 w-56">
                         <Search size={16} className="text-gray-400" />
                         <input
                            type="text"
@@ -271,25 +271,25 @@ export function MaintenancePage() {
                   {activeView === "logs" ? (
                      <table className="w-full text-left">
                         <thead>
-                           <tr className="bg-gray-50/50 border-b border-gray-50">
-                              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Asset / Type</th>
-                              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
-                              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Mechanic</th>
-                              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Cost</th>
-                              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                              <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                           <tr className="bg-gray-50/60 border-b border-gray-100">
+                              <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Asset / Type</th>
+                              <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Date</th>
+                              <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Mechanic</th>
+                              <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Cost</th>
+                              <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Status</th>
+                              <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
                            </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-gray-100/80">
                            {logs.length === 0 ? (
                               <tr><td colSpan={6} className="px-6 py-16 text-center text-gray-400 font-medium">No maintenance logs found.</td></tr>
                            ) : (
                               logs.map((m) => (
-                                 <tr key={m.id} className="hover:bg-gray-50/30 transition-all group">
+                                 <tr key={m.id} className="hover:bg-blue-50/20 transition-all group cursor-default">
                                     <td className="px-6 py-4">
                                        <div>
                                           <p className="font-bold text-gray-900">{m.vehicle}</p>
-                                          <p className="text-xs font-bold text-blue-600 uppercase tracking-tighter">{m.type}</p>
+                                          <p className="text-xs font-bold text-blue-600 uppercase tracking-tight">{m.type}</p>
                                        </div>
                                     </td>
                                     <td className="px-6 py-4 font-bold text-gray-600 text-sm">{m.date}</td>
@@ -297,16 +297,16 @@ export function MaintenancePage() {
                                     <td className="px-6 py-4 font-bold text-gray-900">${m.cost.toLocaleString()}</td>
                                     <td className="px-6 py-4">
                                        <span className={cn(
-                                          "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                                          m.status === "Completed" && "bg-green-50 text-green-600",
-                                          m.status === "In Progress" && "bg-orange-50 text-orange-600",
-                                          m.status === "Scheduled" && "bg-blue-50 text-blue-600",
+                                          "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+                                          m.status === "Completed" && "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                          m.status === "In Progress" && "bg-amber-50 text-amber-700 border-amber-200",
+                                          m.status === "Scheduled" && "bg-blue-50 text-blue-700 border-blue-200",
                                        )}>{m.status}</span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button onClick={() => openEditModal(m)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"><Wrench size={16} /></button>
-                                          <button onClick={() => handleDelete(m.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><X size={16} /></button>
+                                          <button onClick={() => openEditModal(m)} className="p-2 rounded-lg hover:bg-gray-100 border border-transparent hover:border-gray-200 text-gray-400 hover:text-gray-700 transition-all"><Wrench size={16} /></button>
+                                          <button onClick={() => handleDelete(m.id)} className="p-2 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-100 text-gray-400 hover:text-red-600 transition-all"><X size={16} /></button>
                                        </div>
                                     </td>
                                  </tr>
@@ -379,23 +379,27 @@ export function MaintenancePage() {
                         </div>
                      </div>
                   ) : (
-                     <div className="p-6 space-y-4">
+                     <div className="p-6 space-y-3">
                         <h3 className="text-lg font-bold text-gray-900 mb-4">Upcoming Reminders</h3>
                         {reminders.map((r) => (
-                           <div key={r.id} className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:border-blue-200 transition-all">
+                           <div key={r.id} className="group flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/70 backdrop-blur-sm border border-gray-200/80 hover:border-blue-200/80 hover:bg-blue-50/20 hover:shadow-sm transition-all">
                               <div className="flex items-center gap-4">
-                                 <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", r.critical ? "bg-red-50 text-red-500" : "bg-amber-50 text-amber-500")}>
+                                 <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center border",
+                                    r.critical ? "bg-red-50 text-red-500 border-red-200" : "bg-amber-50 text-amber-500 border-amber-200"
+                                 )}>
                                     <AlertTriangle size={18} />
                                  </div>
                                  <div>
                                     <p className="font-bold text-gray-900 text-sm">{r.title}</p>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{r.vehicle}</p>
+                                    <p className="text-[10px] font-medium text-gray-400 uppercase tracking-widest">{r.vehicle}</p>
                                  </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                 <span className={cn("text-xs font-bold px-3 py-1 rounded-full", r.critical ? "bg-red-500 text-white" : "bg-gray-200 text-gray-600")}>{r.date}</span>
-                                 <button onClick={() => handleMarkDone(r.id, r.title)} className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors" title="Mark done"><Check size={16} /></button>
-                                 <button onClick={() => setRescheduleReminder({ id: r.id, title: r.title, scheduleAt: (r as any).scheduleAt || new Date().toISOString().slice(0, 16) })} className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors" title="Reschedule"><CalendarPlus size={16} /></button>
+                                 <span className={cn("text-xs font-bold px-3 py-1 rounded-full border",
+                                    r.critical ? "bg-red-500 text-white border-red-500" : "bg-gray-100 text-gray-600 border-gray-200"
+                                 )}>{r.date}</span>
+                                 <button onClick={() => handleMarkDone(r.id, r.title)} className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Mark done"><Check size={16} /></button>
+                                 <button onClick={() => setRescheduleReminder({ id: r.id, title: r.title, scheduleAt: (r as any).scheduleAt || new Date().toISOString().slice(0, 16) })} className="p-2 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors" title="Reschedule"><CalendarPlus size={16} /></button>
                               </div>
                            </div>
                         ))}
@@ -404,23 +408,23 @@ export function MaintenancePage() {
                </div>
 
                {/* Pagination */}
-               <div className="p-6 border-t border-gray-50 flex justify-between items-center bg-gray-50/20">
-                  <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">
+               <div className="p-5 border-t border-gray-100 flex justify-between items-center bg-gray-50/40">
+                  <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">
                      Showing {logs.length} of {totalCount} logs
                   </p>
                   <div className="flex items-center gap-2">
                      <button
                         onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
-                        className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-white transition-all disabled:text-gray-400 disabled:cursor-not-allowed"
+                        className="px-4 py-2 rounded-xl border border-gray-200/80 text-sm font-bold text-gray-600 hover:bg-white hover:border-gray-300 transition-all disabled:text-gray-300 disabled:cursor-not-allowed"
                      >
                         Previous
                      </button>
-                     <span className="text-sm font-bold text-gray-500 px-2">{currentPage} / {totalPages}</span>
+                     <span className="text-sm font-bold text-gray-400 px-2">{currentPage} / {totalPages}</span>
                      <button
                         onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                         disabled={currentPage === totalPages}
-                        className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-white transition-all disabled:text-gray-400 disabled:cursor-not-allowed"
+                        className="px-4 py-2 rounded-xl border border-gray-200/80 text-sm font-bold text-gray-600 hover:bg-white hover:border-gray-300 transition-all disabled:text-gray-300 disabled:cursor-not-allowed"
                      >
                         Next
                      </button>
@@ -428,30 +432,32 @@ export function MaintenancePage() {
                </div>
             </div>
 
-            <div className="space-y-8">
-               <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden relative">
+            <div className="space-y-6">
+               <div className="bg-white/70 backdrop-blur-xl p-8 rounded-[2rem] border border-gray-200/80 shadow-sm overflow-hidden relative hover:shadow-md transition-all">
                   <div className="absolute top-0 right-0 p-6 opacity-[0.03]">
                      <AlertTriangle size={140} className="text-blue-600" />
                   </div>
                   <div className="relative z-10">
-                     <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-6"><AlertTriangle size={24} /></div>
+                     <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-600 flex items-center justify-center mb-6"><AlertTriangle size={24} /></div>
                      <h3 className="text-2xl font-bold mb-2 text-gray-900">{reminders.length} Due Reminders</h3>
-                     <p className="text-gray-500 font-medium mb-8 leading-relaxed">Insurance renewals and safety inspections are pending for the West Fleet.</p>
-                     <div className="space-y-4">
+                     <p className="text-gray-500 font-medium mb-6 leading-relaxed">Insurance renewals and safety inspections are pending for the West Fleet.</p>
+                     <div className="space-y-3">
                         {reminders.map((r, i) => (
-                           <div key={i} className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                           <div key={i} className="group flex items-center justify-between p-4 rounded-2xl bg-gray-50/80 border border-gray-200/80 hover:border-blue-200/80 hover:bg-blue-50/20 transition-all">
                               <div>
                                  <p className="font-bold text-sm leading-none mb-1 text-gray-900">{r.title}</p>
-                                 <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{r.vehicle}</p>
+                                 <p className="text-[10px] font-medium text-blue-600 uppercase tracking-widest">{r.vehicle}</p>
                               </div>
-                              <span className={cn("text-xs font-bold px-3 py-1 rounded-full", r.critical ? "bg-red-500 text-white" : "bg-blue-100 text-blue-600")}>{r.date}</span>
+                              <span className={cn("text-xs font-bold px-3 py-1 rounded-full border",
+                                 r.critical ? "bg-red-500 text-white border-red-500" : "bg-blue-50 text-blue-600 border-blue-200"
+                              )}>{r.date}</span>
                            </div>
                         ))}
                      </div>
                   </div>
                </div>
 
-               <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
+               <div className="bg-white/70 backdrop-blur-xl p-8 rounded-[2.5rem] border border-gray-200/80 shadow-sm hover:shadow-md transition-all">
                   <div className="flex justify-between items-center mb-6">
                      <h3 className="font-bold text-gray-900">Cost Summary</h3>
                      <button

@@ -231,33 +231,40 @@ export function VehiclesPage() {
             Add Vehicle
           </button>
         </div>
+      </div>      {/* Stats Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          { label: "Total Fleet", value: globalStats.total, icon: Truck, color: "text-blue-600", bg: "bg-blue-50/80", border: "border-blue-100/80" },
+          { label: "Active", value: globalStats.active, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50/80", border: "border-emerald-100/80" },
+          { label: "Inactive", value: globalStats.inactive, icon: AlertCircle, color: "text-rose-600", bg: "bg-rose-50/80", border: "border-rose-100/80" },
+        ].map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -4, scale: 1.01 }}
+            transition={{ delay: i * 0.07 }}
+            className={`group bg-white/70 backdrop-blur-xl p-5 rounded-2xl border ${stat.border} flex items-center gap-4 shadow-sm hover:shadow-md hover:bg-white/90 transition-all`}
+          >
+            <div className={`w-11 h-11 rounded-xl ${stat.bg} border ${stat.border} ${stat.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+              <stat.icon size={20} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.12em]">{stat.label}</p>
+              <p className="text-2xl font-extrabold text-gray-900 tabular-nums">{stat.value}</p>
+            </div>
+          </motion.div>
+        ))}
       </div>
-
-      {/* Stats Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-2 bg-gray-50 rounded-[2rem] border border-gray-100">
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><Truck size={20} /></div>
-          <div><p className="text-xs font-bold text-gray-500">Total</p><p className="text-xl font-bold">{globalStats.total}</p></div>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center"><CheckCircle2 size={20} /></div>
-          <div><p className="text-xs font-bold text-gray-500">Active</p><p className="text-xl font-bold">{globalStats.active}</p></div>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center"><AlertCircle size={20} /></div>
-          <div><p className="text-xs font-bold text-gray-500">Inactive</p><p className="text-xl font-bold">{globalStats.inactive}</p></div>
-        </div>
-      </div>
-
       {/* Filters & Table */}
-      <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100 w-full md:w-80">
+      <div className="bg-white/70 backdrop-blur-xl rounded-[2rem] border border-gray-200/80 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 bg-gray-50/80 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-gray-200/80 w-full md:w-80">
             <Search size={18} className="text-gray-400" />
             <input
               type="text"
               placeholder="Search registration, make..."
-              className="bg-transparent border-none focus:ring-0 text-sm outline-none w-full"
+              className="bg-transparent border-none focus:ring-0 text-sm outline-none w-full font-medium"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -271,8 +278,8 @@ export function VehiclesPage() {
                 key={f}
                 onClick={() => setStatusFilter(f)}
                 className={cn(
-                  "px-4 py-2 rounded-xl text-sm font-bold transition-all",
-                  statusFilter === f ? "bg-blue-50 text-blue-600" : "text-gray-500 hover:text-gray-700"
+                  "px-4 py-2 rounded-xl text-sm font-bold transition-all border",
+                  statusFilter === f ? "bg-blue-50 text-blue-600 border-blue-200" : "text-gray-500 hover:text-gray-700 border-transparent hover:border-gray-200"
                 )}
               >
                 {f}
@@ -284,16 +291,16 @@ export function VehiclesPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-50/50">
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vehicle Details</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Assigned Driver</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Mileage</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Last Service</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+              <tr className="bg-gray-50/60">
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Vehicle Details</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Status</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Assigned Driver</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Mileage</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Last Service</th>
+                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-100/80">
               {vehicles.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-16 text-center text-gray-400 font-medium">
@@ -302,29 +309,29 @@ export function VehiclesPage() {
                 </tr>
               ) : (
                 vehicles.map((v) => (
-                  <motion.tr key={v.id} layout className="hover:bg-gray-50/30 transition-all group">
+                  <motion.tr key={v.id} layout className="hover:bg-blue-50/20 transition-all group cursor-default">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-500 transition-colors">
+                        <div className="w-12 h-12 rounded-xl bg-gray-100/80 border border-gray-200/80 flex items-center justify-center text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-500 group-hover:border-blue-100 transition-colors">
                           {v.type === "Van" || v.type === "Car" ? <Car size={24} /> : <Truck size={24} />}
                         </div>
                         <div>
                           <p className="font-bold text-gray-900 leading-none mb-1">{v.registration}</p>
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-tighter">{v.make} {v.model} • {v.year}</p>
+                          <p className="text-xs font-semibold text-gray-400 uppercase tracking-tight">{v.make} {v.model} • {v.year}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={cn(
-                        "px-3 py-1 rounded-full text-xs font-bold",
-                        v.status === "Active" && "bg-green-50 text-green-600",
-                        v.status === "Maintenance" && "bg-orange-50 text-orange-600",
-                        v.status === "Inactive" && "bg-red-50 text-red-600",
+                        "px-3 py-1 rounded-full text-xs font-bold border",
+                        v.status === "Active" && "bg-emerald-50 text-emerald-700 border-emerald-200",
+                        v.status === "Maintenance" && "bg-amber-50 text-amber-700 border-amber-200",
+                        v.status === "Inactive" && "bg-red-50 text-red-700 border-red-200",
                       )}>{v.status}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-500">
+                        <div className="w-7 h-7 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-500">
                           {v.driver !== "Unassigned" ? v.driver.split(" ").map((n) => n[0]).join("") : "-"}
                         </div>
                         <span className="text-sm font-semibold text-gray-700">{v.driver}</span>
@@ -332,16 +339,16 @@ export function VehiclesPage() {
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm font-bold text-gray-900">{v.mileage.toLocaleString()} mi</p>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{v.fuel}</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{v.fuel}</p>
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm font-semibold text-gray-600">{v.lastService}</p>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setViewingVehicle(v)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"><Eye size={18} /></button>
-                        <button onClick={() => openEditModal(v)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"><Edit2 size={18} /></button>
-                        <button onClick={() => handleDelete(v.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 size={18} /></button>
+                        <button onClick={() => setViewingVehicle(v)} className="p-2 rounded-lg hover:bg-blue-50 border border-transparent hover:border-blue-100 text-gray-400 hover:text-blue-600 transition-all"><Eye size={18} /></button>
+                        <button onClick={() => openEditModal(v)} className="p-2 rounded-lg hover:bg-gray-100 border border-transparent hover:border-gray-200 text-gray-400 hover:text-gray-700 transition-all"><Edit2 size={18} /></button>
+                        <button onClick={() => handleDelete(v.id)} className="p-2 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-100 text-gray-400 hover:text-red-600 transition-all"><Trash2 size={18} /></button>
                       </div>
                     </td>
                   </motion.tr>
@@ -352,23 +359,23 @@ export function VehiclesPage() {
         </div>
 
         {/* Pagination */}
-        <div className="p-6 border-t border-gray-50 flex justify-between items-center bg-gray-50/20">
-          <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">
+        <div className="p-5 border-t border-gray-100 flex justify-between items-center bg-gray-50/40">
+          <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">
             Showing {vehicles.length} of {totalCount} vehicles
           </p>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-white transition-all disabled:text-gray-400 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-xl border border-gray-200/80 text-sm font-bold text-gray-600 hover:bg-white hover:border-gray-300 transition-all disabled:text-gray-300 disabled:cursor-not-allowed"
             >
               Previous
             </button>
-            <span className="text-sm font-bold text-gray-500 px-2">{currentPage} / {totalPages}</span>
+            <span className="text-sm font-bold text-gray-400 px-2">{currentPage} / {totalPages}</span>
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-white transition-all disabled:text-gray-400 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-xl border border-gray-200/80 text-sm font-bold text-gray-600 hover:bg-white hover:border-gray-300 transition-all disabled:text-gray-300 disabled:cursor-not-allowed"
             >
               Next
             </button>

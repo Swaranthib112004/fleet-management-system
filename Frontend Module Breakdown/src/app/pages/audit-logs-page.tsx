@@ -23,8 +23,12 @@ export function AuditLogsPage() {
 
    const loadLogs = React.useCallback(async () => {
       try {
-         const list: any = await auditApi.getAll();
-         setLogs(Array.isArray(list) ? list : (list?.audit || list?.logs || []));
+         const res: any = await auditApi.getAll();
+         // Robust handling of API response shapes: array, {audit:[]}, {logs:[]}, or {data:[]}
+         const list = Array.isArray(res) 
+            ? res 
+            : (res?.audit || res?.logs || res?.data || []);
+         setLogs(list);
          setLastFetched(new Date());
       } catch (err: any) {
          console.warn("Failed to load audit logs:", err?.message);
@@ -46,17 +50,29 @@ export function AuditLogsPage() {
    }, [logs]);
 
    const filtered = logs.filter((log) => {
-      const userName = getUserName(log.user).toLowerCase();
-      const currentUserName = (user?.name || user?.email || "System").toLowerCase();
-      
-      // Strict filter: only show logs for the currently logged-in user
-      if (userName !== currentUserName) return false;
+      const logUser = log.user;
+      const logUserName = getUserName(logUser).toLowerCase();
+      // Also check email if logUser is an object
+      const logUserEmail = (typeof logUser === 'object' && logUser?.email) ? logUser.email.toLowerCase() : "";
+
+      const currentName = (user?.name || "").toLowerCase();
+      const currentEmail = (user?.email || "").toLowerCase();
+
+      // "Respective logs" logic:
+      // Match if the log user matches the current user's name or email.
+      // Using substring matching for name to handle "Swaranthi" vs "Swaranthi B".
+      const isMatch = (currentName && logUserName.includes(currentName)) || 
+                      (logUserName && currentName.includes(logUserName)) ||
+                      (currentEmail && logUserEmail === currentEmail);
+
+      if (!isMatch) return false;
 
       const action = (log.action || "").toLowerCase();
       const target = (log.target || "").toLowerCase();
+      
       if (search) {
          const q = search.toLowerCase();
-         if (!userName.includes(q) && !action.includes(q) && !target.includes(q)) return false;
+         if (!logUserName.includes(q) && !action.includes(q) && !target.includes(q)) return false;
       }
       if (actionFilter && (log.action || "") !== actionFilter) return false;
       if (dateFrom) {
@@ -72,10 +88,10 @@ export function AuditLogsPage() {
 
    const getActionBadgeClass = (action: string) => {
       const a = (action || "").toLowerCase();
-      if (a.includes("delet") || a.includes("cancel")) return "bg-red-50 text-red-600";
-      if (a.includes("creat") || a.includes("add") || a.includes(" complet")) return "bg-green-50 text-green-600";
-      if (a.includes("updat") || a.includes("reschedul") || a.includes("optimiz")) return "bg-blue-50 text-blue-600";
-      return "bg-gray-50 text-gray-600";
+      if (a.includes("delet") || a.includes("cancel")) return "bg-red-50 text-red-600 border border-red-200";
+      if (a.includes("creat") || a.includes("add") || a.includes(" complet")) return "bg-emerald-50 text-emerald-600 border border-emerald-200";
+      if (a.includes("updat") || a.includes("reschedul") || a.includes("optimiz")) return "bg-blue-50 text-blue-600 border border-blue-200";
+      return "bg-gray-50 text-gray-600 border border-gray-200";
    };
 
    const hasFilters = search || actionFilter || dateFrom || dateTo;
@@ -112,11 +128,11 @@ export function AuditLogsPage() {
          </div>
 
          {/* Filters */}
-         <div className="flex flex-wrap gap-2 p-4 rounded-2xl bg-gray-50/80 border border-gray-100">
+         <div className="flex flex-wrap gap-2 p-4 rounded-2xl bg-white/70 backdrop-blur-xl border border-gray-200/80 shadow-sm">
             <select
                value={actionFilter}
                onChange={(e) => setActionFilter(e.target.value)}
-               className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium bg-white focus:border-blue-300 outline-none"
+               className="px-3 py-2 rounded-xl border border-gray-200/80 text-sm font-medium bg-white/80 backdrop-blur-sm focus:border-blue-300 outline-none hover:border-gray-300 transition-all"
             >
                <option value="">All actions</option>
                {actionOptions.filter(Boolean).map((a) => (
@@ -127,14 +143,14 @@ export function AuditLogsPage() {
                type="date"
                value={dateFrom}
                onChange={(e) => setDateFrom(e.target.value)}
-               className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium bg-white focus:border-blue-300 outline-none"
+               className="px-3 py-2 rounded-xl border border-gray-200/80 text-sm font-medium bg-white/80 backdrop-blur-sm focus:border-blue-300 outline-none hover:border-gray-300 transition-all"
                placeholder="From"
             />
             <input
                type="date"
                value={dateTo}
                onChange={(e) => setDateTo(e.target.value)}
-               className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium bg-white focus:border-blue-300 outline-none"
+               className="px-3 py-2 rounded-xl border border-gray-200/80 text-sm font-medium bg-white/80 backdrop-blur-sm focus:border-blue-300 outline-none hover:border-gray-300 transition-all"
                placeholder="To"
             />
             <div className="flex items-center gap-2 flex-1 min-w-[180px]">
@@ -144,12 +160,12 @@ export function AuditLogsPage() {
                   placeholder="Search user, action, or target..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium bg-white focus:border-blue-300 outline-none"
+                  className="flex-1 px-3 py-2 rounded-xl border border-gray-200/80 text-sm font-medium bg-white/80 backdrop-blur-sm focus:border-blue-300 outline-none hover:border-gray-300 transition-all"
                />
                {hasFilters && (
                   <button
                      onClick={() => { setSearch(""); setActionFilter(""); setDateFrom(""); setDateTo(""); }}
-                     className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-white transition-colors"
+                     className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-white border border-transparent hover:border-gray-200 transition-all"
                      title="Clear filters"
                   >
                      <X size={16} />
@@ -162,19 +178,19 @@ export function AuditLogsPage() {
          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden"
+            className="bg-white/70 backdrop-blur-xl rounded-[2rem] border border-gray-200/80 shadow-sm overflow-hidden"
          >
             <div className="overflow-x-auto">
                <table className="w-full text-left">
                   <thead>
-                     <tr className="border-b border-gray-100 bg-gray-50/50">
-                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Time</th>
-                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">User</th>
-                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
-                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Target</th>
+                     <tr className="border-b border-gray-100 bg-gray-50/60">
+                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Time</th>
+                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">User</th>
+                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Action</th>
+                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Target</th>
                      </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-gray-100/80">
                      {loading && logs.length === 0 ? (
                         <tr>
                            <td colSpan={4} className="px-6 py-16 text-center">
@@ -197,9 +213,9 @@ export function AuditLogsPage() {
                               initial={{ opacity: 0, y: 4 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: Math.min(i * 0.02, 0.3) }}
-                              className="hover:bg-gray-50/50 transition-colors group"
+                              className="hover:bg-blue-50/20 transition-colors group cursor-default"
                            >
-                              <td className="px-6 py-4 text-sm font-medium text-gray-500 whitespace-nowrap">
+                              <td className="px-6 py-4 text-sm font-semibold text-gray-400 whitespace-nowrap">
                                  {log.createdAt
                                     ? new Date(log.createdAt).toLocaleString(undefined, {
                                          dateStyle: "short",
@@ -211,11 +227,11 @@ export function AuditLogsPage() {
                                  <span className="font-bold text-gray-900">{getUserName(log.user)}</span>
                               </td>
                               <td className="px-6 py-4">
-                                 <span className={cn("px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-tighter", getActionBadgeClass(log.action || ""))}>
+                                 <span className={cn("px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-tight", getActionBadgeClass(log.action || ""))}>
                                     {log.action || "—"}
                                  </span>
                               </td>
-                              <td className="px-6 py-4 text-sm font-medium text-gray-600">{log.target || "—"}</td>
+                              <td className="px-6 py-4 text-sm font-semibold text-gray-600">{log.target || "—"}</td>
                            </motion.tr>
                         ))
                      )}
@@ -223,7 +239,7 @@ export function AuditLogsPage() {
                </table>
             </div>
             {filtered.length > 0 && (
-               <div className="px-6 py-4 border-t border-gray-50 bg-gray-50/30 text-sm font-bold text-gray-500">
+               <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/40 text-sm font-bold text-gray-400">
                   Showing {filtered.length} of {logs.length} logs
                   {hasFilters && " (filtered)"}
                </div>

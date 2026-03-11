@@ -121,8 +121,9 @@ export function AnalyticsPage() {
                   key={kpi.label}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
+                  whileHover={{ y: -6, scale: 1.02 }}
                   transition={{ delay: i * 0.08 }}
-                  className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                  className="group bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-gray-200/80 shadow-sm hover:shadow-lg hover:bg-white/90 hover:border-blue-100/80 transition-all cursor-pointer"
                   onClick={() => {
                      if (kpi.color === "blue") navigate("/app/fleet/vehicles");
                      else if (kpi.color === "green") navigate("/app/fleet/drivers");
@@ -131,24 +132,24 @@ export function AnalyticsPage() {
                      toast.info(`Opening ${kpi.label} details...`);
                   }}
                >
-                  <div className="flex justify-between items-start mb-4">
-                     <div className={cn("p-3 rounded-xl",
-                        kpi.color === "blue" ? "bg-blue-50 text-blue-600" :
-                           kpi.color === "green" ? "bg-green-50 text-green-600" :
-                              kpi.color === "orange" ? "bg-orange-50 text-orange-600" :
-                                 "bg-purple-50 text-purple-600"
+                  <div className="flex justify-between items-start mb-5">
+                     <div className={cn("p-3 rounded-xl border",
+                        kpi.color === "blue" ? "bg-blue-50 text-blue-600 border-blue-200" :
+                           kpi.color === "green" ? "bg-emerald-50 text-emerald-600 border-emerald-200" :
+                              kpi.color === "orange" ? "bg-amber-50 text-amber-600 border-amber-200" :
+                                 "bg-purple-50 text-purple-600 border-purple-200"
                      )}>
-                        <kpi.icon size={24} />
+                        <kpi.icon size={22} className="group-hover:scale-110 transition-transform" />
                      </div>
-                     <div className={cn("text-xs font-bold px-2 py-1 rounded-full",
-                        kpi.trend === "up" ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600"
+                     <div className={cn("text-xs font-bold px-2 py-1 rounded-full border",
+                        kpi.trend === "up" ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-amber-50 text-amber-600 border-amber-200"
                      )}>
                         {kpi.change}
                      </div>
                   </div>
                   <div>
-                     <p className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-1">{kpi.label}</p>
-                     <h3 className="text-3xl font-extrabold text-gray-900">{kpi.value}</h3>
+                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.12em] mb-1">{kpi.label}</p>
+                     <h3 className="text-3xl font-extrabold text-gray-900 tabular-nums">{kpi.value}</h3>
                   </div>
                   <div className="mt-3 text-xs font-bold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                      View Details <ArrowUpRight size={12} />
@@ -168,10 +169,11 @@ export function AnalyticsPage() {
                   key={gauge.label}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
+                  whileHover={{ y: -5, scale: 1.01 }}
                   transition={{ delay: 0.3 + i * 0.08 }}
-                  className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm"
+                  className="bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-gray-200/80 shadow-sm hover:shadow-md hover:bg-white/90 transition-all"
                >
-                  <h4 className="font-bold text-gray-900 mb-4">{gauge.label}</h4>
+                  <h4 className="font-extrabold text-gray-900 mb-4">{gauge.label}</h4>
                   <div className="flex items-center gap-6">
                      <div className="relative w-24 h-24">
                         <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
@@ -211,10 +213,10 @@ export function AnalyticsPage() {
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
                transition={{ delay: 0.5 }}
-               className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm"
+               className="bg-white/70 backdrop-blur-xl p-8 rounded-[2.5rem] border border-gray-200/80 shadow-sm hover:shadow-md transition-all"
             >
                <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-xl font-bold">Weekly Performance</h3>
+                  <h3 className="text-xl font-extrabold text-gray-900">Weekly Performance</h3>
                   <div className="flex items-center gap-4 text-xs font-bold">
                      <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-600" /> Mileage</span>
                      <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500" /> Cost</span>
@@ -236,7 +238,7 @@ export function AnalyticsPage() {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
                         <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
-                        <Tooltip contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }} />
+                        <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid rgba(255,255,255,0.8)", backgroundColor: "rgba(255,255,255,0.9)", backdropFilter: "blur(8px)", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }} />
                         <Area type="monotone" dataKey="mileage" stroke="#2563eb" strokeWidth={3} fill="url(#anl_mileage)" />
                         <Area type="monotone" dataKey="cost" stroke="#10b981" strokeWidth={2} fill="url(#anl_cost)" />
                      </AreaChart>
@@ -249,9 +251,9 @@ export function AnalyticsPage() {
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
                transition={{ delay: 0.6 }}
-               className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm"
+               className="bg-white/70 backdrop-blur-xl p-8 rounded-[2.5rem] border border-gray-200/80 shadow-sm hover:shadow-md transition-all"
             >
-               <h3 className="text-xl font-bold mb-8">Asset Distribution</h3>
+               <h3 className="text-xl font-extrabold text-gray-900 mb-8">Asset Distribution</h3>
                <div className="h-[320px] flex items-center justify-center gap-8">
                   <ResponsiveContainer width="55%" height="100%">
                      <PieChart>
@@ -260,7 +262,7 @@ export function AnalyticsPage() {
                               <Cell key={`cell-${index}`} fill={entry.color || PIE_COLORS[index % PIE_COLORS.length]} stroke="none" />
                            ))}
                         </Pie>
-                        <Tooltip />
+                        <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid rgba(255,255,255,0.8)", backgroundColor: "rgba(255,255,255,0.9)", backdropFilter: "blur(8px)", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }} />
                      </PieChart>
                   </ResponsiveContainer>
                   <div className="space-y-4">
@@ -283,12 +285,13 @@ export function AnalyticsPage() {
             <motion.div
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
+               whileHover={{ y: -5, scale: 1.01 }}
                transition={{ delay: 0.7 }}
-               className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm"
+               className="bg-white/70 backdrop-blur-xl p-8 rounded-[2.5rem] border border-gray-200/80 shadow-sm hover:shadow-md transition-all"
             >
                <div className="flex items-center justify-between mb-8">
                   <div>
-                     <h3 className="text-xl font-bold">Monthly Maintenance Cost</h3>
+                     <h3 className="text-xl font-extrabold text-gray-900">Monthly Maintenance Cost</h3>
                      <p className="text-sm text-gray-500">Track your service expenses over time</p>
                   </div>
                   <div className="flex items-center gap-4 text-xs font-bold">
@@ -302,7 +305,7 @@ export function AnalyticsPage() {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
                         <YAxis axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 12 }} />
-                        <Tooltip contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }} />
+                        <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid rgba(255,255,255,0.8)", backgroundColor: "rgba(255,255,255,0.9)", backdropFilter: "blur(8px)", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }} />
                         <Bar dataKey="cost" fill="#2563eb" radius={[8, 8, 0, 0]} barSize={40} />
                         <Bar dataKey="count" fill="#f59e0b" radius={[8, 8, 0, 0]} barSize={40} />
                      </BarChart>
@@ -316,12 +319,13 @@ export function AnalyticsPage() {
             <motion.div
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
+               whileHover={{ y: -5, scale: 1.01 }}
                transition={{ delay: 0.8 }}
-               className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition-all group"
+               className="group bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-gray-200/80 shadow-sm cursor-pointer hover:shadow-md hover:bg-white/90 hover:border-blue-100/80 transition-all"
                onClick={() => { navigate("/app/fleet/vehicles"); toast.info("Opening vehicles..."); }}
             >
-               <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4"><Truck size={24} /></div>
-               <h3 className="font-bold text-gray-900 text-lg mb-1">Fleet Summary</h3>
+               <div className="w-12 h-12 rounded-xl bg-blue-50 border border-blue-200/80 text-blue-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><Truck size={24} /></div>
+               <h3 className="font-extrabold text-gray-900 text-lg mb-1">Fleet Summary</h3>
                <p className="text-gray-500 text-sm mb-4">{fleet.totalVehicles || 0} vehicles total, {fleet.activeVehicles || 0} active</p>
                <span className="text-sm font-bold text-blue-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">Manage Fleet <ArrowUpRight size={14} /></span>
             </motion.div>
@@ -329,12 +333,13 @@ export function AnalyticsPage() {
             <motion.div
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
+               whileHover={{ y: -5, scale: 1.01 }}
                transition={{ delay: 0.85 }}
-               className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition-all group"
+               className="group bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-gray-200/80 shadow-sm cursor-pointer hover:shadow-md hover:bg-white/90 hover:border-emerald-100/80 transition-all"
                onClick={() => { navigate("/app/fleet/drivers"); toast.info("Opening drivers..."); }}
             >
-               <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4"><Users size={24} /></div>
-               <h3 className="font-bold text-gray-900 text-lg mb-1">Driver Summary</h3>
+               <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><Users size={24} /></div>
+               <h3 className="font-extrabold text-gray-900 text-lg mb-1">Driver Summary</h3>
                <p className="text-gray-500 text-sm mb-4">{drivers.totalDrivers || 0} drivers, {drivers.activeDrivers || 0} active</p>
                <span className="text-sm font-bold text-emerald-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">Manage Drivers <ArrowUpRight size={14} /></span>
             </motion.div>
@@ -342,14 +347,15 @@ export function AnalyticsPage() {
             <motion.div
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
+               whileHover={{ y: -5, scale: 1.01 }}
                transition={{ delay: 0.9 }}
-               className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm cursor-pointer hover:shadow-md transition-all group"
+               className="group bg-white/70 backdrop-blur-xl p-6 rounded-[2rem] border border-gray-200/80 shadow-sm cursor-pointer hover:shadow-md hover:bg-white/90 hover:border-amber-100/80 transition-all"
                onClick={() => { navigate("/app/maintenance"); toast.info("Opening maintenance..."); }}
             >
-               <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center mb-4"><Wrench size={24} /></div>
-               <h3 className="font-bold text-gray-900 text-lg mb-1">Maintenance Summary</h3>
+               <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><Wrench size={24} /></div>
+               <h3 className="font-extrabold text-gray-900 text-lg mb-1">Maintenance Summary</h3>
                <p className="text-gray-500 text-sm mb-4">{maintenance.total || 0} records, ₹{(maintenance.totalCost || 0).toLocaleString()} total cost</p>
-               <span className="text-sm font-bold text-orange-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">View Maintenance <ArrowUpRight size={14} /></span>
+               <span className="text-sm font-bold text-amber-600 flex items-center gap-1 group-hover:translate-x-1 transition-transform">View Maintenance <ArrowUpRight size={14} /></span>
             </motion.div>
          </div>
       </div>
