@@ -39,6 +39,7 @@ export interface MaintenanceLog {
     mechanic: string;
     status: "Completed" | "In Progress" | "Scheduled";
     notes: string;
+    nextDueAt?: string;
 }
 
 export interface Reminder {
@@ -98,6 +99,16 @@ export interface Route {
     optimizationScore?: number;
     isOptimized?: boolean;
     routePolyline?: { lat: number; lng: number }[];
+    distanceSaved?: number;
+    timeSaved?: number;
+    costSavings?: number;
+    co2Reduction?: number;
+    efficiencyGain?: number;
+    lastPosition?: {
+        lat: number;
+        lng: number;
+        waypointIndex: number;
+    };
     createdAt?: string;
     updatedAt?: string;
 }

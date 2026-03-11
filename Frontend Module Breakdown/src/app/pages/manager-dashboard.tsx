@@ -33,10 +33,10 @@ export function ManagerDashboard() {
       setLoading(true);
       try {
         const [vResp, dResp, mResp, rResp, cResp] = await Promise.allSettled([
-          vehiclesApi.getAll({ limit: 1000 }),
-          driversApi.getAll({ limit: 1000 }),
-          maintenanceApi.getAll({ limit: 1000 }),
-          routesApi.getAll({ limit: 1000 }),
+          vehiclesApi.getAll(),
+          driversApi.getAll(),
+          maintenanceApi.getAll(),
+          routesApi.getAll(),
           dashboardApi.getChartData(),
         ]);
         if (vResp.status === "fulfilled") {

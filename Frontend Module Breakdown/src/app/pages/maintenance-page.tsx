@@ -1,10 +1,10 @@
 import React from "react";
-import { Plus, Wrench, Calendar, Clock, CheckCircle2, AlertTriangle, Search, Filter, Download, X } from "lucide-react";
+import { Plus, Wrench, Calendar, Clock, CheckCircle2, AlertTriangle, Search, Filter, Download, X, Check, CalendarPlus } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { cn } from "../lib/utils";
-import { maintenanceApi, remindersApi } from "../lib/api";
-import type { MaintenanceLog, Reminder } from "../lib/types";
+import { maintenanceApi, remindersApi, vehiclesApi, auditApi } from "../lib/api";
+import type { MaintenanceLog, Reminder, Vehicle } from "../lib/types";
 
 type MaintenanceFormData = Omit<MaintenanceLog, "id">;
 
@@ -16,14 +16,19 @@ const EMPTY_FORM: MaintenanceFormData = {
    mechanic: "",
    status: "Scheduled",
    notes: "",
+   nextDueAt: "",
 };
+
+const SERVICE_TYPES = ["Oil Change", "AC Servicing", "Tyre Rotation & Alignment", "Brake Service", "Engine Repair", "Battery Replacement", "General Inspection", "Other"];
 
 export function MaintenancePage() {
    const [logs, setLogs] = React.useState<MaintenanceLog[]>([]);
    const [reminders, setReminders] = React.useState<Reminder[]>([]);
+   const [vehicles, setVehicles] = React.useState<Vehicle[]>([]);
    const [activeView, setActiveView] = React.useState("logs");
    const [isModalOpen, setIsModalOpen] = React.useState(false);
    const [editingLog, setEditingLog] = React.useState<MaintenanceLog | null>(null);
+   const [rescheduleReminder, setRescheduleReminder] = React.useState<{ id: string; title: string; scheduleAt: string } | null>(null);
    const [formData, setFormData] = React.useState<MaintenanceFormData>(EMPTY_FORM);
    const [searchTerm, setSearchTerm] = React.useState("");
    const [loadingData, setLoadingData] = React.useState(false);
@@ -47,18 +52,36 @@ export function MaintenancePage() {
 
    const openEditModal = (log: MaintenanceLog) => {
       setEditingLog(log);
-      setFormData({ ...log });
+      
+      let formattedNextDueAt = "";
+      if (log.nextDueAt) {
+         try {
+            const d = new Date(log.nextDueAt);
+            if (!isNaN(d.getTime())) {
+               formattedNextDueAt = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+            }
+         } catch(e) {
+            formattedNextDueAt = "";
+         }
+      }
+
+      setFormData({ ...log, nextDueAt: formattedNextDueAt });
       setIsModalOpen(true);
    };
 
    const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       try {
+         const payload = { ...formData };
+         if (!payload.nextDueAt) delete payload.nextDueAt;
+
          if (editingLog) {
-            await maintenanceApi.update(editingLog.id, formData);
+            await maintenanceApi.update(editingLog.id, payload);
+            try { await auditApi.add({ action: "maintenance_updated", target: `${formData.vehicle} - ${formData.type}`, user: "current", createdAt: new Date().toISOString() } as any); } catch { }
             toast.success("Maintenance log updated");
          } else {
-            await maintenanceApi.create(formData);
+            const created = await maintenanceApi.create(payload);
+            try { await auditApi.add({ action: "maintenance_created", target: `${formData.vehicle} - ${formData.type}`, user: "current", createdAt: new Date().toISOString() } as any); } catch { }
             toast.success("Maintenance log added");
          }
          setCurrentPage(1);
@@ -72,8 +95,10 @@ export function MaintenancePage() {
 
    const handleDelete = async (id: string) => {
       if (!confirm("Delete this maintenance log?")) return;
+      const existing = logs.find(l => l.id === id);
       try {
          await maintenanceApi.delete(id);
+         try { await auditApi.add({ action: "maintenance_deleted", target: existing ? `${existing.vehicle} - ${existing.type}` : id, user: "current", createdAt: new Date().toISOString() } as any); } catch { }
          toast.error("Maintenance log deleted");
          await reloadLogs();
       } catch (err: any) {
@@ -109,6 +134,18 @@ export function MaintenancePage() {
       }
    };
 
+   const typeOptions = React.useMemo(() => {
+      if (!formData.type || SERVICE_TYPES.includes(formData.type)) return SERVICE_TYPES;
+      return [...SERVICE_TYPES, formData.type];
+   }, [formData.type]);
+
+   React.useEffect(() => {
+      vehiclesApi.getAll().then((list: any) => {
+         const arr = Array.isArray(list) ? list : (list.items || list.vehicles || list.data || []);
+         setVehicles(arr.map((v: any) => ({ ...v, id: v.id || v._id })));
+      }).catch(() => setVehicles([]));
+   }, []);
+
    React.useEffect(() => {
       setCurrentPage(1);
    }, [searchTerm]);
@@ -120,13 +157,16 @@ export function MaintenancePage() {
    const loadReminders = async () => {
       try {
          const list = await remindersApi.getAll();
-         const mapped = list.map((r: any) => ({
-            id: r.id || r._id,
-            title: r.title || r.message || 'Upcoming Reminder',
-            vehicle: typeof r.vehicle === 'object' ? (r.vehicle?.registration || 'Vehicle') : (r.vehicle || 'Unknown'),
-            date: r.date || (r.scheduleAt ? new Date(r.scheduleAt).toLocaleDateString() : ''),
-            critical: r.critical || r.type === 'urgent' || r.type === 'critical'
-         }));
+         const mapped = list
+            .filter((r: any) => !r.status || (r.status !== 'completed' && r.status !== 'cancelled'))
+            .map((r: any) => ({
+               id: r.id || r._id,
+               title: r.title || r.message || 'Upcoming Reminder',
+               vehicle: typeof r.vehicle === 'object' ? (r.vehicle?.registration || 'Vehicle') : (r.vehicle || 'Unknown'),
+               date: r.date || (r.scheduleAt ? new Date(r.scheduleAt).toLocaleDateString() : ''),
+               scheduleAt: r.scheduleAt ? new Date(r.scheduleAt).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
+               critical: r.critical || r.type === 'urgent' || r.type === 'critical'
+            }));
          setReminders(mapped);
       } catch (err: any) {
          console.warn("Failed to load reminders:", err.message);
@@ -137,8 +177,36 @@ export function MaintenancePage() {
    React.useEffect(() => {
       if (activeView === 'reminders') {
          loadReminders();
+         const interval = setInterval(loadReminders, 5000);
+         return () => clearInterval(interval);
       }
    }, [activeView]);
+
+   const handleMarkDone = async (id: string, title: string) => {
+      try {
+         await remindersApi.update(id, { status: 'completed' });
+         try { await auditApi.add({ action: "reminder_completed", target: title, user: "current", createdAt: new Date().toISOString() } as any); } catch { }
+         toast.success("Reminder marked done");
+         loadReminders();
+      } catch (err: any) {
+         toast.error(err.message || "Failed");
+      }
+   };
+
+   const handleRescheduleSubmit = async (e: React.FormEvent) => {
+      if (!rescheduleReminder) return;
+      e.preventDefault();
+      try {
+         const scheduleAt = new Date(rescheduleReminder.scheduleAt).toISOString();
+         await remindersApi.update(rescheduleReminder.id, { scheduleAt });
+         try { await auditApi.add({ action: "reminder_rescheduled", target: rescheduleReminder.title, user: "current", createdAt: new Date().toISOString() } as any); } catch { }
+         toast.success("Reminder rescheduled");
+         setRescheduleReminder(null);
+         loadReminders();
+      } catch (err: any) {
+         toast.error(err.message || "Failed");
+      }
+   };
 
    return (
       <div className="space-y-8 max-w-[1600px] mx-auto pb-10">
@@ -314,7 +382,7 @@ export function MaintenancePage() {
                      <div className="p-6 space-y-4">
                         <h3 className="text-lg font-bold text-gray-900 mb-4">Upcoming Reminders</h3>
                         {reminders.map((r) => (
-                           <div key={r.id} className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:border-blue-200 transition-all">
+                           <div key={r.id} className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:border-blue-200 transition-all">
                               <div className="flex items-center gap-4">
                                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", r.critical ? "bg-red-50 text-red-500" : "bg-amber-50 text-amber-500")}>
                                     <AlertTriangle size={18} />
@@ -324,7 +392,11 @@ export function MaintenancePage() {
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{r.vehicle}</p>
                                  </div>
                               </div>
-                              <span className={cn("text-xs font-bold px-3 py-1 rounded-full", r.critical ? "bg-red-500 text-white" : "bg-gray-200 text-gray-600")}>{r.date}</span>
+                              <div className="flex items-center gap-2">
+                                 <span className={cn("text-xs font-bold px-3 py-1 rounded-full", r.critical ? "bg-red-500 text-white" : "bg-gray-200 text-gray-600")}>{r.date}</span>
+                                 <button onClick={() => handleMarkDone(r.id, r.title)} className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors" title="Mark done"><Check size={16} /></button>
+                                 <button onClick={() => setRescheduleReminder({ id: r.id, title: r.title, scheduleAt: (r as any).scheduleAt || new Date().toISOString().slice(0, 16) })} className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors" title="Reschedule"><CalendarPlus size={16} /></button>
+                              </div>
                            </div>
                         ))}
                      </div>
@@ -438,12 +510,22 @@ export function MaintenancePage() {
                      <form className="space-y-6" onSubmit={handleSubmit}>
                         <div className="grid grid-cols-2 gap-6">
                            <div className="space-y-1.5">
-                              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Vehicle Registration</label>
-                              <input type="text" required placeholder="e.g. VOL-2024-X" value={formData.vehicle} onChange={(e) => handleFormChange("vehicle", e.target.value)} className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium" />
+                              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Vehicle</label>
+                              <select required value={formData.vehicle} onChange={(e) => handleFormChange("vehicle", e.target.value)} className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium appearance-none">
+                                 <option value="">Select vehicle...</option>
+                                 {vehicles.map((v) => (
+                                    <option key={v.id} value={v.registration}>{v.registration} ({v.make} {v.model})</option>
+                                 ))}
+                              </select>
                            </div>
                            <div className="space-y-1.5">
                               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Service Type</label>
-                              <input type="text" required placeholder="e.g. Oil Change" value={formData.type} onChange={(e) => handleFormChange("type", e.target.value)} className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium" />
+                              <select required value={formData.type} onChange={(e) => handleFormChange("type", e.target.value)} className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium appearance-none">
+                                 <option value="">Select type...</option>
+                                 {typeOptions.map((t) => (
+                                    <option key={t} value={t}>{t}</option>
+                                 ))}
+                              </select>
                            </div>
                            <div className="space-y-1.5">
                               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Date</label>
@@ -465,6 +547,10 @@ export function MaintenancePage() {
                                  <option>Completed</option>
                               </select>
                            </div>
+                           <div className="space-y-1.5">
+                              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Next Service Due</label>
+                              <input type="datetime-local" required value={formData.nextDueAt || ""} onChange={(e) => handleFormChange("nextDueAt", e.target.value)} className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium" />
+                           </div>
                         </div>
                         <div className="space-y-1.5">
                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Notes</label>
@@ -475,6 +561,40 @@ export function MaintenancePage() {
                            <button type="submit" className="flex-1 py-4 rounded-2xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-all shadow-xl shadow-blue-100">
                               {editingLog ? "Save Changes" : "Add Log"}
                            </button>
+                        </div>
+                     </form>
+                  </motion.div>
+               </div>
+            )}
+         </AnimatePresence>
+
+         {/* Reschedule Reminder Modal */}
+         <AnimatePresence>
+            {rescheduleReminder && (
+               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setRescheduleReminder(null)}>
+                  <motion.div
+                     initial={{ scale: 0.95, opacity: 0 }}
+                     animate={{ scale: 1, opacity: 1 }}
+                     exit={{ scale: 0.95, opacity: 0 }}
+                     className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl p-8"
+                     onClick={(e) => e.stopPropagation()}
+                  >
+                     <h2 className="text-xl font-bold mb-2">Reschedule Reminder</h2>
+                     <p className="text-gray-500 text-sm mb-6">{rescheduleReminder.title}</p>
+                     <form onSubmit={handleRescheduleSubmit} className="space-y-4">
+                        <div>
+                           <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1.5">New Date & Time</label>
+                           <input
+                              type="datetime-local"
+                              required
+                              value={rescheduleReminder.scheduleAt}
+                              onChange={(e) => setRescheduleReminder(r => r ? { ...r, scheduleAt: e.target.value } : null)}
+                              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none font-medium"
+                           />
+                        </div>
+                        <div className="flex gap-4 pt-4">
+                           <button type="button" onClick={() => setRescheduleReminder(null)} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold hover:bg-gray-50">Cancel</button>
+                           <button type="submit" className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700">Reschedule</button>
                         </div>
                      </form>
                   </motion.div>

@@ -16,6 +16,7 @@ import {
   Menu,
   Search,
   User,
+  FileSearch,
   Shield,
   UserCog,
   Car,
@@ -45,28 +46,26 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/app", roles: ["admin", "manager", "driver", "customer"] },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/app", roles: ["admin"] },
   {
     label: "Fleet",
-    roles: ["admin", "manager"],
+    roles: ["admin"],
     children: [
-      { icon: Truck, label: "Vehicles", path: "/app/fleet/vehicles", roles: ["admin", "manager"] },
-      { icon: Users, label: "Drivers", path: "/app/fleet/drivers", roles: ["admin", "manager"] },
+      { icon: Truck, label: "Vehicles", path: "/app/fleet/vehicles", roles: ["admin"] },
+      { icon: Users, label: "Drivers", path: "/app/fleet/drivers", roles: ["admin"] },
     ]
   },
-  { icon: Wrench, label: "Maintenance", path: "/app/maintenance", roles: ["admin", "manager"] },
-  { icon: Map, label: "Routing & Tracking", path: "/app/routing", roles: ["admin", "manager", "driver"] },
-  { icon: BarChart3, label: "Analytics", path: "/app/analytics", roles: ["admin", "manager"] },
-  { icon: FileText, label: "Documents", path: "/app/documents", roles: ["admin", "manager", "customer"] },
+  { icon: Wrench, label: "Maintenance", path: "/app/maintenance", roles: ["admin"] },
+  { icon: Map, label: "Routing & Tracking", path: "/app/routing", roles: ["admin"] },
+  { icon: BarChart3, label: "Analytics", path: "/app/analytics", roles: ["admin"] },
+  { icon: FileSearch, label: "Audit Logs", path: "/app/audit-logs", roles: ["admin"] },
+  { icon: FileText, label: "Documents", path: "/app/documents", roles: ["admin"] },
   { icon: Settings, label: "Settings", path: "/app/settings", roles: ["admin"] },
 ];
 
 // Role display config
 const ROLE_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   admin: { label: "Administrator", color: "text-indigo-600 bg-indigo-50 border-indigo-200", icon: Shield },
-  manager: { label: "Fleet Manager", color: "text-sky-600 bg-sky-50 border-sky-200", icon: UserCog },
-  driver: { label: "Driver", color: "text-emerald-600 bg-emerald-50 border-emerald-200", icon: Car },
-  customer: { label: "Customer", color: "text-violet-600 bg-violet-50 border-violet-200", icon: UserCircle },
 };
 
 function filterNavByRole(items: NavItem[], role: string): NavItem[] {
@@ -92,33 +91,45 @@ export function Shell() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  const userRole = user?.role || "driver";
-  const roleConfig = ROLE_CONFIG[userRole] || ROLE_CONFIG.driver;
+  const userRole = user?.role || "admin";
+  const roleConfig = ROLE_CONFIG[userRole] || ROLE_CONFIG.admin;
   const RoleIcon = roleConfig.icon;
   const filteredNav = filterNavByRole(NAV_ITEMS, userRole);
 
-  const loadReminders = async () => {
-    setLoadingReminders(true);
+  const loadReminders = React.useCallback(async (silent = false) => {
+    if (!silent) setLoadingReminders(true);
     try {
       const list = await remindersApi.getAll();
-      const mapped = list.map((r) => ({
-        ...r,
-        title: r.title || r.message || 'Upcoming Reminder',
-        description: r.description || '',
-      }));
+      const mapped = list
+        .filter((r: any) => !r.status || (r.status !== 'completed' && r.status !== 'cancelled'))
+        .map((r: any) => ({
+          id: r.id || r._id,
+          title: r.title || r.message || 'Upcoming Reminder',
+          description: r.description || r.message || '',
+          date: r.scheduleAt ? new Date(r.scheduleAt).toLocaleDateString() : (r.date || ''),
+          vehicle: typeof r.vehicle === 'object' ? r.vehicle?.registration : (r.vehicle || 'Unknown'),
+          critical: r.critical || r.type === 'urgent' || r.type === 'critical',
+          dueDate: r.scheduleAt || r.date,
+        }));
       setReminders(mapped);
     } catch (err) {
-      console.warn("Failed to load reminders:", err);
+      if (!silent) console.warn("Failed to load reminders:", err);
       setReminders([]);
     } finally {
-      setLoadingReminders(false);
+      if (!silent) setLoadingReminders(false);
     }
-  };
+  }, []);
+
+  React.useEffect(() => {
+    loadReminders(true);
+    const interval = setInterval(() => loadReminders(true), 5000);
+    return () => clearInterval(interval);
+  }, [loadReminders]);
 
   const handleNotificationsOpen = (open: boolean) => {
     setNotificationsOpen(open);
     if (open) {
-      loadReminders();
+      loadReminders(false);
     }
   };
 

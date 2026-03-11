@@ -18,8 +18,8 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { cn } from "../lib/utils";
-import { vehiclesApi } from "../lib/api";
-import type { Vehicle } from "../lib/types";
+import { vehiclesApi, driversApi, auditApi } from "../lib/api";
+import type { Vehicle, Driver } from "../lib/types";
 
 type VehicleFormData = Omit<Vehicle, "id">;
 
@@ -57,6 +57,8 @@ export function VehiclesPage() {
     inactive: 0,
   });
 
+  const [drivers, setDrivers] = React.useState<Driver[]>([]);
+
   // ----- Handlers -----
   const openAddModal = () => {
     setEditingVehicle(null);
@@ -75,9 +77,31 @@ export function VehiclesPage() {
     try {
       if (editingVehicle) {
         await vehiclesApi.update(editingVehicle.id, formData);
+        // Audit log for update
+        try {
+          await auditApi.add({
+            action: "vehicle_updated",
+            target: editingVehicle.registration,
+            user: "current", // backend will enrich user from token if supported
+            createdAt: new Date().toISOString(),
+          } as any);
+        } catch {
+          // best-effort; don't block main flow
+        }
         toast.success(`Vehicle ${formData.registration} updated successfully`);
       } else {
-        await vehiclesApi.create(formData);
+        const created = await vehiclesApi.create(formData);
+        // Audit log for create
+        try {
+          await auditApi.add({
+            action: "vehicle_created",
+            target: created.registration,
+            user: "current",
+            createdAt: new Date().toISOString(),
+          } as any);
+        } catch {
+          //
+        }
         toast.success(`Vehicle ${formData.registration} registered successfully`);
       }
       await reloadVehicles();
@@ -91,7 +115,19 @@ export function VehiclesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this vehicle?")) return;
     try {
+      const existing = vehicles.find(v => v.id === id);
       await vehiclesApi.delete(id);
+      // Audit log for delete
+      try {
+        await auditApi.add({
+          action: "vehicle_deleted",
+          target: existing?.registration || id,
+          user: "current",
+          createdAt: new Date().toISOString(),
+        } as any);
+      } catch {
+        //
+      }
       toast.error("Vehicle deleted");
       await reloadVehicles();
     } catch (err: any) {
@@ -146,6 +182,19 @@ export function VehiclesPage() {
     reloadVehicles(currentPage, searchTerm, statusFilter);
   }, [currentPage]);
 
+  // Load drivers once for assignment dropdown
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res: any = await driversApi.getAll();
+        const list: Driver[] = res.drivers || res || [];
+        setDrivers(list);
+      } catch {
+        setDrivers([]);
+      }
+    })();
+  }, []);
+
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto pb-10">
       {/* Page Header */}
@@ -185,7 +234,7 @@ export function VehiclesPage() {
       </div>
 
       {/* Stats Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-2 bg-gray-50 rounded-[2rem] border border-gray-100">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-2 bg-gray-50 rounded-[2rem] border border-gray-100">
         <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><Truck size={20} /></div>
           <div><p className="text-xs font-bold text-gray-500">Total</p><p className="text-xl font-bold">{globalStats.total}</p></div>
@@ -193,10 +242,6 @@ export function VehiclesPage() {
         <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-green-50 text-green-600 flex items-center justify-center"><CheckCircle2 size={20} /></div>
           <div><p className="text-xs font-bold text-gray-500">Active</p><p className="text-xl font-bold">{globalStats.active}</p></div>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center"><Clock size={20} /></div>
-          <div><p className="text-xs font-bold text-gray-500">Service</p><p className="text-xl font-bold">{globalStats.maintenance}</p></div>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-gray-100 flex items-center gap-4">
           <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center"><AlertCircle size={20} /></div>
@@ -407,7 +452,13 @@ export function VehiclesPage() {
                   <FormInput label="Mileage (Initial)" type="number" placeholder="0" value={String(formData.mileage)} onChange={(v) => handleFormChange("mileage", Number(v))} />
                   <FormInput label="Year" type="number" placeholder="2024" value={String(formData.year)} onChange={(v) => handleFormChange("year", Number(v))} />
                   <FormInput label="Status" type="select" options={["Active", "Maintenance", "Inactive"]} value={formData.status} onChange={(v) => handleFormChange("status", v)} />
-                  <FormInput label="Assigned Driver" placeholder="e.g. Alex Thompson" value={formData.driver} onChange={(v) => handleFormChange("driver", v)} />
+                  <FormInput
+                    label="Assigned Driver"
+                    type="select"
+                    options={["Unassigned"].concat(drivers.map(d => d.name))}
+                    value={formData.driver || "Unassigned"}
+                    onChange={(v) => handleFormChange("driver", v)}
+                  />
                   <FormInput label="Last Service Date" type="date" value={formData.lastService} onChange={(v) => handleFormChange("lastService", v)} />
                 </div>
 

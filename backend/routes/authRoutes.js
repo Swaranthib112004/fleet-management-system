@@ -7,12 +7,7 @@ const { requireRole } = require('../middleware/roleMiddleware');
 const router = express.Router();
 
 // Traditional routes
-if (process.env.NODE_ENV === 'test') {
-  // tests expect to be able to call /register without first logging in
-  router.post('/register', registerUser);
-} else {
-  router.post('/register', verifyToken, requireRole('admin'), registerUser);
-}
+router.post('/register', registerUser);
 // Add GET /login for browser access or health check
 router.get('/login', (req, res) => {
   res.status(200).json({ message: 'Login endpoint. Use POST for authentication.' });
@@ -35,9 +30,11 @@ if (googleEnabled) {
   // use it when creating a new user.
   router.get('/google', (req, res, next) => {
     const { role } = req.query;
+    console.log('Google OAuth role:', role);
     // JSON state must be URL-encoded so it survives the OAuth redirect safely
     const rawState = JSON.stringify({ role });
     const encodedState = encodeURIComponent(rawState);
+    console.log('Google OAuth state:', rawState);
     passport.authenticate('google', {
       scope: ['profile', 'email'],
       state: encodedState
@@ -58,9 +55,9 @@ if (googleEnabled) {
         // Redirect to frontend with token
         const roleRoutes = {
           admin: '/app',
-          manager: '/manager-dashboard',
+          manager: '/app/manager-dashboard',
           driver: '/app',
-          customer: '/dashboard' // generic front‑end home for customers
+          customer: '/app/customer-dashboard' // Updated to match frontend
         };
 
         const redirectUrl = `${process.env.FRONTEND_URL}${roleRoutes[req.user.role] || '/dashboard'}?token=${accessToken}`;

@@ -12,7 +12,7 @@ import {
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { cn } from "../lib/utils";
-import { dashboardApi } from "../lib/api";
+import { dashboardApi, vehiclesApi, driversApi, remindersApi } from "../lib/api";
 
 const PIE_COLORS = ["#2563eb", "#34d399", "#f59e0b", "#a855f7", "#ef4444", "#06b6d4"];
 

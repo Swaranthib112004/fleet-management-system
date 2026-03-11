@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./../lib/auth";
-import { vehiclesApi, driversApi, maintenanceApi, routesApi, auditApi } from "../lib/api";
+import { vehiclesApi, driversApi, maintenanceApi, routesApi, auditApi, dashboardApi, remindersApi } from "../lib/api";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import {
@@ -15,31 +15,46 @@ export function AdminDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [vehicles, setVehicles] = React.useState<any[]>([]);
-  const [drivers, setDrivers] = React.useState<any[]>([]);
+  const [vehicleCount, setVehicleCount] = React.useState(0);
+  const [driverCount, setDriverCount] = React.useState(0);
   const [maintenanceItems, setMaintenanceItems] = React.useState<any[]>([]);
   const [routes, setRoutes] = React.useState<any[]>([]);
+  const [reminders, setReminders] = React.useState<any[]>([]);
   const [auditLogs, setAuditLogs] = React.useState<any[]>([]);
+  const [overviewStats, setOverviewStats] = React.useState({
+    totalVehicles: 0,
+    activeDrivers: 0,
+    pendingService: 0,
+    activeRoutes: 0,
+  });
   const [loading, setLoading] = React.useState(true);
 
+  /**
+   * Load data for the dashboard.
+   * - Uses summary endpoint to ensure counts match the overview API.
+   * - Also fetches raw items for more detailed widgets.
+   */
   React.useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const [vResp, dResp, mResp, rResp, aResp] = await Promise.allSettled([
-          vehiclesApi.getAll({ limit: 1000 }),
-          driversApi.getAll({ limit: 1000 }),
-          maintenanceApi.getAll({ limit: 1000 }),
-          routesApi.getAll({ limit: 1000 }),
+        const [vResp, dResp, mResp, rResp, aResp, remResp, overviewResp] = await Promise.allSettled([
+          vehiclesApi.getAll(),
+          driversApi.getAll(),
+          maintenanceApi.getAll(),
+          routesApi.getAll(),
           auditApi.getAll(),
+          remindersApi.getAll(),
+          dashboardApi.getOverview(),
         ]);
+
         if (vResp.status === "fulfilled") {
           const v = vResp.value as any;
-          setVehicles(v?.vehicles || (Array.isArray(v) ? v : []));
+          setVehicleCount(v?.vehicles?.length ?? v?.length ?? 0);
         }
         if (dResp.status === "fulfilled") {
           const d = dResp.value as any;
-          setDrivers(d?.drivers || (Array.isArray(d) ? d : []));
+          setDriverCount(d?.drivers?.length ?? d?.length ?? 0);
         }
         if (mResp.status === "fulfilled") {
           const m = mResp.value as any;
@@ -54,6 +69,40 @@ export function AdminDashboard() {
           const a = aResp.value as any;
           setAuditLogs(Array.isArray(a) ? a.slice(0, 8) : []);
         }
+        if (remResp.status === "fulfilled") {
+          const rem = remResp.value as any;
+          setReminders(Array.isArray(rem) ? rem : (rem?.reminders || []));
+        }
+
+        if (overviewResp.status === "fulfilled") {
+          const overview = overviewResp.value as any;
+          const o = overview?.stats?.reduce(
+            (acc: any, item: any) => {
+              switch (item.label) {
+                case "Total Vehicles":
+                  acc.totalVehicles = Number(item.value) || 0;
+                  break;
+                case "Active Drivers":
+                  acc.activeDrivers = Number(item.value) || 0;
+                  break;
+                case "Pending Service":
+                  acc.pendingService = Number(item.value) || 0;
+                  break;
+                case "Active Routes":
+                  acc.activeRoutes = Number(item.value) || 0;
+                  break;
+              }
+              return acc;
+            },
+            {
+              totalVehicles: 0,
+              activeDrivers: 0,
+              pendingService: 0,
+              activeRoutes: 0,
+            }
+          );
+          setOverviewStats(o);
+        }
       } catch (err: any) {
         // Silently handle errors - fall back to empty data
         console.warn("Admin dashboard load error:", err.message);
@@ -61,22 +110,59 @@ export function AdminDashboard() {
         setLoading(false);
       }
     };
+
     load();
+
+    // Keep the dashboard in sync by polling the overview periodically
+    const interval = setInterval(() => {
+      dashboardApi.getOverview().then((res: any) => {
+        const o = (res?.stats || []).reduce(
+          (acc: any, item: any) => {
+            switch (item.label) {
+              case "Total Vehicles":
+                acc.totalVehicles = Number(item.value) || 0;
+                break;
+              case "Active Drivers":
+                acc.activeDrivers = Number(item.value) || 0;
+                break;
+              case "Pending Service":
+                acc.pendingService = Number(item.value) || 0;
+                break;
+              case "Active Routes":
+                acc.activeRoutes = Number(item.value) || 0;
+                break;
+            }
+            return acc;
+          },
+          {
+            totalVehicles: 0,
+            activeDrivers: 0,
+            pendingService: 0,
+            activeRoutes: 0,
+          }
+        );
+        setOverviewStats(o);
+      }).catch(() => {
+        // ignore polling errors
+      });
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  const activeVehicles = vehicles.filter((v: any) => v.status === "active" || v.status === "Active").length;
-  const activeDrivers = drivers.filter((d: any) => d.status === "Active" || !d.status).length;
-  const pendingMaintenance = Array.isArray(maintenanceItems)
+  const pendingMaintenance = overviewStats.pendingService || (Array.isArray(maintenanceItems)
     ? maintenanceItems.filter((m: any) => m.status !== "Completed").length
-    : 0;
-  const activeRoutes = Array.isArray(routes)
+    : 0);
+  const activeRoutes = overviewStats.activeRoutes || (Array.isArray(routes)
     ? routes.filter((r: any) => r.status === "active" || r.status === "planned").length
-    : 0;
+    : 0);
+  const effectiveVehicleCount = overviewStats.totalVehicles || vehicleCount;
+  const effectiveDriverCount = overviewStats.activeDrivers || driverCount;
 
   // Quick action cards for admin
   const quickActions = [
-    { icon: Truck, label: "Manage Vehicles", desc: "Add, edit, delete fleet vehicles", path: "/app/fleet/vehicles", color: "from-blue-500 to-blue-700", count: vehicles.length },
-    { icon: Users, label: "Manage Drivers", desc: "Driver assignments & profiles", path: "/app/fleet/drivers", color: "from-emerald-500 to-emerald-700", count: drivers.length },
+    { icon: Truck, label: "Manage Vehicles", desc: "Add, edit, delete fleet vehicles", path: "/app/fleet/vehicles", color: "from-blue-500 to-blue-700", count: effectiveVehicleCount },
+    { icon: Users, label: "Manage Drivers", desc: "Driver assignments & profiles", path: "/app/fleet/drivers", color: "from-emerald-500 to-emerald-700", count: effectiveDriverCount },
     { icon: Wrench, label: "Maintenance", desc: "Schedule & track services", path: "/app/maintenance", color: "from-orange-500 to-orange-700", count: pendingMaintenance },
     { icon: Map, label: "Routes & Tracking", desc: "GPS tracking & route optimization", path: "/app/routing", color: "from-violet-500 to-violet-700", count: activeRoutes },
     { icon: BarChart3, label: "Analytics", desc: "Fleet performance insights", path: "/app/analytics", color: "from-pink-500 to-pink-700", count: null },
@@ -106,40 +192,89 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      {/* Quick Action Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {quickActions.map((action, i) => (
-          <motion.div
-            key={action.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.06 }}
-            onClick={() => {
-              navigate(action.path);
-              toast.info(`Opening ${action.label}...`);
-            }}
-            className="group cursor-pointer relative overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-xl transition-all duration-300"
-          >
-            <div className={cn("absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br", action.color)} />
-            <div className="relative p-6 group-hover:text-white transition-colors duration-300">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-gray-50 group-hover:bg-white/20 flex items-center justify-center transition-colors duration-300">
-                  <action.icon size={24} className="text-gray-600 group-hover:text-white transition-colors duration-300" />
-                </div>
-                {action.count !== null && (
-                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700 group-hover:bg-white/20 group-hover:text-white transition-colors duration-300">
-                    {action.count}
-                  </span>
-                )}
-              </div>
-              <h3 className="font-bold text-gray-900 group-hover:text-white transition-colors duration-300 mb-1">{action.label}</h3>
-              <p className="text-sm text-gray-500 group-hover:text-white/80 transition-colors duration-300">{action.desc}</p>
-              <div className="mt-4 flex items-center gap-1 text-sm font-bold text-blue-600 group-hover:text-white/90 transition-colors duration-300">
-                Open Module <ArrowUpRight size={16} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform duration-300" />
-              </div>
+      {/* Top Main Analytics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* Vehicles */}
+        <motion.div
+           initial={{ opacity: 0, y: 20 }}
+           animate={{ opacity: 1, y: 0 }}
+           transition={{ delay: 0.1 }}
+           onClick={() => navigate("/app/fleet/vehicles")}
+           className="relative overflow-hidden bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:border-gray-300 transition-all duration-300 cursor-pointer group"
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:scale-110 transition-transform duration-500">
+            <Truck size={100} />
+          </div>
+          <div className="flex items-center gap-4 mb-4 relative z-10">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Truck size={24} />
             </div>
-          </motion.div>
-        ))}
+            <div>
+              <h3 className="text-gray-500 font-medium text-sm">Total Vehicles</h3>
+              <p className="text-3xl font-extrabold text-gray-900 leading-none">{effectiveVehicleCount}</p>
+            </div>
+          </div>
+          <div className="pt-4 border-t border-gray-50 flex items-center justify-between text-sm relative z-10">
+            <span className="text-gray-500">View fleet details</span>
+            <ChevronRight size={16} className="text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
+          </div>
+        </motion.div>
+
+        {/* Drivers */}
+        <motion.div
+           initial={{ opacity: 0, y: 20 }}
+           animate={{ opacity: 1, y: 0 }}
+           transition={{ delay: 0.2 }}
+           onClick={() => navigate("/app/fleet/drivers")}
+           className="relative overflow-hidden bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:border-gray-300 transition-all duration-300 cursor-pointer group"
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:scale-110 transition-transform duration-500">
+            <Users size={100} />
+          </div>
+          <div className="flex items-center gap-4 mb-4 relative z-10">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <Users size={24} />
+            </div>
+            <div>
+              <h3 className="text-gray-500 font-medium text-sm">Active Drivers</h3>
+              <p className="text-3xl font-extrabold text-gray-900 leading-none">{effectiveDriverCount}</p>
+            </div>
+          </div>
+          <div className="pt-4 border-t border-gray-50 flex items-center justify-between text-sm relative z-10">
+            <span className="text-gray-500">Manage personnel</span>
+            <ChevronRight size={16} className="text-gray-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
+          </div>
+        </motion.div>
+
+        {/* Reminders */}
+        <motion.div
+           initial={{ opacity: 0, y: 20 }}
+           animate={{ opacity: 1, y: 0 }}
+           transition={{ delay: 0.3 }}
+           onClick={() => navigate("/app/maintenance")}
+           className="relative overflow-hidden bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-xl hover:border-gray-300 transition-all duration-300 cursor-pointer group"
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-[0.04] group-hover:scale-110 transition-transform duration-500">
+            <AlertTriangle size={100} />
+          </div>
+          <div className="flex items-center gap-4 mb-4 relative z-10">
+            <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+              <AlertTriangle size={24} />
+            </div>
+            <div>
+              <h3 className="text-gray-500 font-medium text-sm">Pending Reminders</h3>
+              <p className="text-3xl font-extrabold text-gray-900 leading-none">
+                {reminders.filter(r => r.status === "pending").length}
+              </p>
+            </div>
+          </div>
+          <div className="pt-4 border-t border-gray-50 flex items-center justify-between text-sm relative z-10">
+            <span className="text-gray-500">Address urgent items</span>
+            <ChevronRight size={16} className="text-gray-400 group-hover:text-orange-600 group-hover:translate-x-1 transition-all" />
+          </div>
+        </motion.div>
+
       </div>
 
       {/* System Health & Audit Logs */}
@@ -149,37 +284,40 @@ export function AdminDashboard() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden relative"
+          className="bg-white p-8 rounded-[2rem] text-gray-900 overflow-hidden relative border border-gray-200 shadow-sm hover:shadow-xl hover:border-gray-300 transition-all duration-300 group"
         >
-          <div className="absolute top-0 right-0 p-6 opacity-[0.03]">
-            <Server size={140} className="text-gray-900" />
+          <div className="absolute top-0 right-0 p-6 opacity-10 text-gray-200 transition-transform duration-500 group-hover:scale-105">
+            <Server size={140} />
+          </div>
+          <div className="absolute top-6 right-6 bg-white shadow-sm border border-gray-100 text-gray-700 text-xs font-semibold px-3 py-1 rounded-full z-20 transition-colors duration-300 group-hover:text-green-600 group-hover:border-green-200 group-hover:bg-green-50">
+            Healthy
           </div>
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
-                <Database size={20} className="text-green-600" />
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                <Database size={20} className="text-green-400" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900">System Health</h3>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-50 text-green-600 border border-green-100">
+              <h3 className="text-lg font-bold">System Health</h3>
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30">
                 All Systems Go
               </span>
             </div>
             <div className="grid grid-cols-2 gap-4">
               {[
-                { label: "Vehicles", value: activeVehicles, icon: Truck, status: "Active" },
-                { label: "Drivers", value: activeDrivers, icon: Users, status: "Online" },
+                { label: "Vehicles", value: effectiveVehicleCount, icon: Truck, status: "Active" },
+                { label: "Drivers", value: effectiveDriverCount, icon: Users, status: "Online" },
                 { label: "Pending Jobs", value: pendingMaintenance, icon: Wrench, status: pendingMaintenance > 0 ? "Action Needed" : "Clear" },
                 { label: "Active Routes", value: activeRoutes, icon: Map, status: "Tracking" },
               ].map((item) => (
-                <div key={item.label} className="bg-gray-50 border border-gray-100 p-4 rounded-xl">
+                <div key={item.label} className="bg-gray-50 border border-gray-200 p-4 rounded-xl hover:bg-white hover:shadow-lg hover:border-gray-300 hover:-translate-y-1 transition-all duration-300 group cursor-default">
                   <div className="flex items-center gap-2 mb-2">
-                    <item.icon size={16} className="text-gray-500" />
-                    <span className="text-xs text-gray-500 font-medium">{item.label}</span>
+                    <item.icon size={16} className="text-gray-400 group-hover:text-blue-500 transition-colors duration-300" />
+                    <span className="text-xs text-gray-500 font-medium group-hover:text-gray-700 transition-colors duration-300">{item.label}</span>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">{item.value}</p>
+                  <p className="text-2xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors duration-300">{item.value}</p>
                   <span className={cn(
-                    "text-[10px] font-bold uppercase tracking-wider",
-                    item.status === "Action Needed" ? "text-amber-600" : "text-green-600"
+                    "text-[10px] font-bold uppercase tracking-wider transition-colors duration-300",
+                    item.status === "Action Needed" ? "text-amber-500" : "text-green-500"
                   )}>{item.status}</span>
                 </div>
               ))}

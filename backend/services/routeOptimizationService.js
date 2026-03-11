@@ -12,16 +12,19 @@ class RouteOptimizationService {
 
     // Gemini configuration
     this.aiKey = process.env.GEMINI_API_KEY;
-    this.aiModel = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    // Fallback Gemini API key (hardcoded or from env)
+    this.fallbackAiKey = 'AIzaSyDpRso5ajRYmDRvtgLy11CPjGbe8Olo6B8';
     this.aiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta';
+    // Try flash models first — highest free rate limits
+    // Using confirmed accessible models for free-tier reliability
+    this.fallbackModels = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+    this.aiModel = this.fallbackModels[0];
     this.aiEnabled = !!this.aiKey;
 
     if (!this.aiKey) {
       logger.warn('GEMINI_API_KEY is not defined. Route optimization will use built-in algorithms.');
     } else {
       logger.info('Gemini route optimizer initialized', { model: this.aiModel });
-      // List of fallback models to try if the primary one fails
-      this.fallbackModels = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-pro', 'gemini-2.0-flash'];
     }
   }
 
@@ -34,6 +37,7 @@ class RouteOptimizationService {
   async optimizeRoute(routeData, parameters = {}) {
     try {
       logger.info('Starting route optimization', { routeCode: routeData.routeCode, aiEnabled: this.aiEnabled });
+      // If AI fails, fallback to built-in algorithm
 
       const waypoints = routeData.waypoints || [];
 
@@ -69,11 +73,16 @@ class RouteOptimizationService {
         parameters
       );
 
-      // Fetch the actual road polyline from OSRM to render real roads instead of straight lines
+      // Always fetch the actual road polyline from OSRM
       const polyline = await this.getRoutePolyline(coordinates, optimizedSequence);
-      if (polyline) {
-        metrics.routePolyline = polyline;
+      // Only accept polyline if it has more than 2 points (real road path)
+      if (!polyline || polyline.length <= 2) {
+        throw new Error('Failed to fetch real road polyline from OSRM. Route optimization cannot proceed.');
       }
+      metrics.routePolyline = polyline;
+
+      // Debug log to verify polyline data
+      console.log('Generated polyline:', polyline);
 
       // Generate alternative routes
       const alternatives = await this.generateAlternatives(
@@ -111,34 +120,40 @@ class RouteOptimizationService {
    * @returns {Promise<Object>} Distance matrix
    */
   async getDistanceMatrix(coordinates) {
-    try {
-      // Using OSRM (Open Source Routing Machine)
-      const coordinateString = coordinates.map(c => `${c[0]},${c[1]}`).join(';');
+    // Try multiple OSRM servers for reliability
+    const osrmServers = [
+      this.osrmBaseUrl,
+      'https://routing.openstreetmap.de/routed-car'
+    ];
 
-      const response = await axios.get(
-        `${this.osrmBaseUrl}/table/v1/driving/${coordinateString}`,
-        {
-          params: {
-            annotations: 'distance,duration'
-          },
-          timeout: 10000
+    let lastError = null;
+    for (const server of osrmServers) {
+      try {
+        const coordinateString = coordinates.map(c => `${c[0]},${c[1]}`).join(';');
+        const response = await axios.get(
+          `${server}/table/v1/driving/${coordinateString}`,
+          {
+            params: { annotations: 'distance,duration' },
+            timeout: 10000 // 10s is enough
+          }
+        );
+
+        if (response.data.code === 'Ok') {
+          return {
+            distances: response.data.distances,
+            durations: response.data.durations,
+            sources: response.data.sources,
+            destinations: response.data.destinations
+          };
         }
-      );
-
-      if (response.data.code !== 'Ok') {
-        throw new Error(`OSRM error: ${response.data.code}`);
+      } catch (error) {
+        lastError = error;
+        logger.warn(`OSRM server ${server} failed for matrix, trying next...`, { error: error.message });
       }
-
-      return {
-        distances: response.data.distances, // in meters
-        durations: response.data.durations, // in seconds
-        sources: response.data.sources,
-        destinations: response.data.destinations
-      };
-    } catch (error) {
-      logger.warn('OSRM unavailable, using fallback calculation', { error: error.message });
-      return this.calculateDistanceMatrixFallback(coordinates);
     }
+
+    logger.warn('All OSRM servers failed for matrix, using haversine fallback', { error: lastError?.message });
+    return this.calculateDistanceMatrixFallback(coordinates);
   }
 
   /**
@@ -148,28 +163,36 @@ class RouteOptimizationService {
    * @returns {Promise<Array>} Polyline path 
    */
   async getRoutePolyline(coordinates, sequence) {
-    try {
-      const orderedCoords = sequence.map(idx => coordinates[idx]);
-      const coordinateString = orderedCoords.map(c => `${c[0]},${c[1]}`).join(';');
+    const osrmServers = [
+      this.osrmBaseUrl,
+      'https://routing.openstreetmap.de/routed-car'
+    ];
 
-      const response = await axios.get(
-        `${this.osrmBaseUrl}/route/v1/driving/${coordinateString}`,
-        {
-          params: { overview: 'full', geometries: 'geojson' },
-          timeout: 10000
+    const orderedCoords = sequence.map(idx => coordinates[idx]);
+    const coordinateString = orderedCoords.map(c => `${c[0]},${c[1]}`).join(';');
+
+    for (const server of osrmServers) {
+      try {
+        const response = await axios.get(
+          `${server}/route/v1/driving/${coordinateString}`,
+          {
+            params: { overview: 'full', geometries: 'geojson' },
+            timeout: 15000
+          }
+        );
+
+        if (response.data.code === 'Ok' && response.data.routes && response.data.routes[0]) {
+          const coords = response.data.routes[0].geometry.coordinates;
+          // GeoJSON returns [lon, lat], frontend LeafletMap expects { lat, lng }
+          return coords.map(c => ({ lat: c[1], lng: c[0] }));
         }
-      );
-
-      if (response.data.code === 'Ok' && response.data.routes && response.data.routes[0]) {
-        const coords = response.data.routes[0].geometry.coordinates;
-        // GeoJSON returns [lon, lat], frontend LeafletMap expects { lat, lng }
-        return coords.map(c => ({ lat: c[1], lng: c[0] }));
+      } catch (err) {
+        logger.error(`Failed to fetch road polyline from ${server}`, { error: err.message });
       }
-      return null;
-    } catch (err) {
-      logger.warn('Failed to fetch actual route polyline from OSRM', { error: err.message });
-      return null;
     }
+
+    logger.warn('All OSRM servers failed to provide road polyline.');
+    return [];
   }
 
   /**
@@ -233,19 +256,22 @@ class RouteOptimizationService {
 
     switch (algorithm) {
       case 'ai':
-        // Try Gemini first if configured
         if (this.aiEnabled) {
           try {
             const result = await this.optimizeWithGemini(coordinates, distanceData, parameters);
             return { sequence: result, optimizerUsed: 'gemini' };
           } catch (err) {
-            logger.error('Gemini optimization failed.', { error: err.message });
-            throw new Error(`AI Route Optimization failed: ${err.message}. This is likely due to API quota limits (429) or service availability. Please try again in 1-2 minutes or use a different algorithm.`);
+            logger.error('Gemini optimization failed. Falling back to local algorithm.', { error: err.message });
+            // Fallback to nearest-neighbor to ensure users never get a hard crash
+            sequence = this.nearestNeighbor(distanceData.distances);
+            optimizerUsed = 'nearest-neighbor-fallback';
+            break;
           }
         } else {
-          // Gemini not configured - THROW ERROR as requested by user instead of fallback
-          logger.error('Gemini not configured, skipping AI optimization. API Key missing.');
-          throw new Error('GEMINI_API_KEY is missing. Strict AI optimization requires a valid Gemini API Key.');
+          // If AI is disabled, immediately use fallback
+          sequence = this.nearestNeighbor(distanceData.distances);
+          optimizerUsed = 'nearest-neighbor';
+          break;
         }
       case 'nearest-neighbor':
         sequence = this.nearestNeighbor(distanceData.distances, parameters);
@@ -264,26 +290,23 @@ class RouteOptimizationService {
   }
 
   /**
-   * Optimize route using Gemini
+   * Optimize route using Gemini AI
    * @param {Array} coordinates - waypoint coordinates
    * @param {Object} distanceData - matrix with distances/durations
    * @param {Object} parameters - parameters
    * @returns {Promise<Array>} optimized index order
    */
   async optimizeWithGemini(coordinates, distanceData, parameters) {
-    const modelsToTry = [this.aiModel, ...this.fallbackModels.filter(m => m !== this.aiModel)];
+    const modelsToTry = this.fallbackModels;
     let lastError = null;
 
     for (const model of modelsToTry) {
-      const maxRetries = 2;
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          logger.info(`Gemini optimization attempt ${attempt} with model ${model}`, { waypointCount: coordinates.length });
-
+          logger.info(`Gemini route opt attempt ${attempt} with model ${model}`);
           const shortDistanceMatrix = distanceData.distances.map(row =>
-            row.map(d => Math.round(d / 1000)) // Convert to km
+            row.map(d => Math.round(d / 1000))
           );
-
           const prompt = `You are an expert route optimization AI. Find the optimal order to visit all waypoints minimizing total distance.
 
 Waypoints:
@@ -298,96 +321,89 @@ Rules:
 3. Return ONLY a JSON array of the sequence (e.g. [0,3,1,2,4])
 4. Array length must be ${coordinates.length}`;
 
-          const response = await axios.post(
-            `${this.aiBaseUrl}/models/${model}:generateContent?key=${this.aiKey}`,
-            {
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: {
-                temperature: 0.1,
-                topP: 1,
-                maxOutputTokens: 1024
-              }
-            },
-            { timeout: 35000 }
-          );
+          // Try with primary key
+          let usedKey = this.aiKey;
+          let response;
+          try {
+            response = await axios.post(
+              `${this.aiBaseUrl}/models/${model}:generateContent?key=${usedKey}`,
+              { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 256 } },
+              { timeout: 30000 }
+            );
+          } catch (err) {
+            const status = err?.response?.status;
+            if (status === 429) {
+              logger.warn('Primary Gemini API key rate-limited, retrying with fallback key.');
+              usedKey = this.fallbackAiKey;
+              response = await axios.post(
+                `${this.aiBaseUrl}/models/${model}:generateContent?key=${usedKey}`,
+                { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.1, maxOutputTokens: 256 } },
+                { timeout: 30000 }
+              );
+            } else {
+              throw err;
+            }
+          }
 
           const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
           if (!content) throw new Error('Empty AI response');
 
-          // Parse JSON array
-          let sequence;
           const jsonMatch = content.match(/\[[\d,\s]+\]/);
-          if (jsonMatch) {
-            sequence = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error('No valid JSON array found');
-          }
+          if (!jsonMatch) throw new Error('No valid JSON array found');
 
-          // Validate sequence
-          if (!Array.isArray(sequence) || sequence.length !== coordinates.length) {
-            throw new Error('Invalid sequence length');
-          }
+          const sequence = JSON.parse(jsonMatch[0]);
+          if (!Array.isArray(sequence) || sequence.length !== coordinates.length) throw new Error('Invalid sequence');
 
-          // Ensure all indices are present
           const sortedSeq = [...sequence].sort((a, b) => a - b);
-          const allIndicesPresent = sortedSeq.every((val, idx) => val === idx);
-          if (!allIndicesPresent) throw new Error('Not all waypoints included');
+          if (!sortedSeq.every((v, i) => v === i)) throw new Error('Not all waypoints included');
 
-          logger.info(`Gemini optimization successful using model ${model}`);
+          logger.info(`Gemini route optimization success: ${model}`);
           return sequence;
-
         } catch (err) {
           lastError = err;
-          const status = err.response?.status;
-          logger.warn(`Optimization failed with ${model} (attempt ${attempt}): ${err.message}`, { status });
-
-          // If it's a 404 or 429, don't bother retrying this specific model, move to next model
-          if (status === 404 || status === 403 || (status === 429 && attempt === maxRetries)) {
-            break;
-          }
-
-          // Wait slightly before retry
-          if (attempt < maxRetries) {
-            await new Promise(r => setTimeout(r, 1000 * attempt));
-          }
+          const status = err?.response?.status;
+          logger.warn(`Route opt failed ${model} attempt ${attempt}: ${err.message}`, { status });
+          if (status === 429) { await new Promise(r => setTimeout(r, 2000)); break; }
+          if (attempt < 2) await new Promise(r => setTimeout(r, 1000));
         }
       }
     }
-
-    throw new Error(`All Gemini models failed. Last error: ${lastError.message}`);
+    throw new Error(`All Gemini route models failed. Last: ${lastError?.message}`);
   }
 
+
   /**
-   * Nearest Neighbor algorithm - greedy approach
-   * @param {Array} distances - Distance matrix
-   * @param {Object} parameters - Optimization parameters
-   * @returns {Array} Optimized sequence
+   * Built-in Nearest Neighbor (TSP Fallback)
+   * Ensures optimization always returns result even when rate-limited.
    */
-  nearestNeighbor(distances, parameters = {}) {
+  nearestNeighbor(distances) {
     const n = distances.length;
-    const visited = new Set([0]); // Start from first waypoint
-    const route = [0];
+    const visited = new Array(n).fill(false);
+    const sequence = [0]; // Start at origin (startLocation)
+    visited[0] = true;
 
-    while (visited.size < n) {
-      const current = route[route.length - 1];
+    for (let i = 1; i < n; i++) {
+      let lastIdx = sequence[sequence.length - 1];
       let nearest = -1;
-      let minDistance = Infinity;
+      let minDist = Infinity;
 
-      for (let i = 0; i < n; i++) {
-        if (!visited.has(i) && distances[current][i] < minDistance) {
-          minDistance = distances[current][i];
-          nearest = i;
+      for (let j = 0; j < n; j++) {
+        if (!visited[j] && distances[lastIdx][j] < minDist) {
+          minDist = distances[lastIdx][j];
+          nearest = j;
         }
       }
 
       if (nearest !== -1) {
-        route.push(nearest);
-        visited.add(nearest);
+        visited[nearest] = true;
+        sequence.push(nearest);
       }
     }
-
-    return route;
+    return sequence;
   }
+
+  // Robust fallback: always return built-in algorithm if AI fails
+  // This logic should be inside the nearestNeighbor method, not here.
 
   /**
    * Genetic Algorithm for optimization

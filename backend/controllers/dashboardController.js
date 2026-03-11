@@ -272,45 +272,4 @@ exports.getDriverDashboard = async (req, res, next) => {
 };
 
 // ─── Customer-specific Dashboard ─────────────────────────────────
-exports.getCustomerDashboard = async (req, res, next) => {
-  try {
-    // Get recent routes as "shipments" for customer view
-    const routes = await Route.find({}).sort({ createdAt: -1 }).limit(10);
 
-    const shipments = routes.map((r, i) => ({
-      id: r._id,
-      trackingCode: r.routeCode || `SH-${String(i + 1001).padStart(4, '0')}`,
-      origin: r.startLocation?.name || r.startLocation || 'Origin',
-      destination: r.endLocation?.name || r.endLocation || 'Destination',
-      status: r.status === 'completed' ? 'Delivered' : r.status === 'in-progress' || r.status === 'active' ? 'In Transit' : 'Processing',
-      eta: new Date(Date.now() + (i + 1) * 7200000).toLocaleString(),
-      distance: r.distance || Math.floor(Math.random() * 200 + 50),
-      createdAt: r.createdAt,
-    }));
-
-    if (shipments.length === 0) {
-      shipments.push(
-        { id: '1', trackingCode: 'SH-1001', origin: 'Mumbai Warehouse', destination: 'Delhi Hub', status: 'In Transit', eta: new Date(Date.now() + 3600000).toLocaleString(), distance: 1400, createdAt: new Date() },
-        { id: '2', trackingCode: 'SH-1002', origin: 'Delhi Hub', destination: 'Jaipur Center', status: 'Processing', eta: new Date(Date.now() + 7200000).toLocaleString(), distance: 280, createdAt: new Date() },
-        { id: '3', trackingCode: 'SH-1003', origin: 'Chennai Port', destination: 'Bangalore DC', status: 'Delivered', eta: 'Delivered', distance: 350, createdAt: new Date(Date.now() - 86400000) },
-      );
-    }
-
-    const totalShipments = routes.length || 3;
-    const inTransit = shipments.filter(s => s.status === 'In Transit').length;
-    const delivered = shipments.filter(s => s.status === 'Delivered').length;
-    const processing = shipments.filter(s => s.status === 'Processing').length;
-
-    res.json({
-      shipments,
-      stats: {
-        totalShipments,
-        inTransit,
-        delivered,
-        processing,
-      },
-    });
-  } catch (err) {
-    next(err);
-  }
-};

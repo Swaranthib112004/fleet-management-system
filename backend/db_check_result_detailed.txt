@@ -1,0 +1,3 @@
+Found 1 optimized routes
+Route: ygu89, Status: active, Polyline Count: 2
+Points: [{"lat":8.079252,"lng":77.5499338,"_id":"69adac5716652a088b0e60e1"},{"lat":13.0836939,"lng":80.270186,"_id":"69adac5716652a088b0e60e2"}] ... [{"lat":13.0836939,"lng":80.270186,"_id":"69adac5716652a088b0e60e2"}]

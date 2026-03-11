@@ -1,6 +1,11 @@
 const aiAssistantService = require('../services/aiAssistantService');
 const logger = require('../utils/logger');
 
+// Minimal in-memory cooldown to avoid hammering Gemini (which triggers 429s).
+// Keyed per-user; resets on server restart (good enough for dev/small deployments).
+const CHAT_COOLDOWN_MS = parseInt(process.env.AI_CHAT_COOLDOWN_MS || '0', 10);
+const lastChatAtByUser = new Map();
+
 class AIAssistantController {
   /**
    * Send message to AI assistant
@@ -18,6 +23,20 @@ class AIAssistantController {
       if (!userId) {
         return res.status(401).json({ error: 'User not authenticated' });
       }
+
+      // Simple per-user cooldown to reduce Gemini 429s.
+      const now = Date.now();
+      const lastAt = lastChatAtByUser.get(String(userId)) || 0;
+      const since = now - lastAt;
+      if (since >= 0 && since < CHAT_COOLDOWN_MS) {
+        const retryAfterMs = CHAT_COOLDOWN_MS - since;
+        res.set('Retry-After', String(Math.max(1, Math.ceil(retryAfterMs / 1000))));
+        return res.status(429).json({
+          error: 'Too many requests',
+          details: `Please wait ${Math.ceil(retryAfterMs / 1000)}s and try again.`
+        });
+      }
+      lastChatAtByUser.set(String(userId), now);
 
       const response = await aiAssistantService.processMessage(userId, message, {
         userRole,
@@ -135,6 +154,38 @@ class AIAssistantController {
       logger.error('Error getting fleet context', { error: error.message });
       return res.status(500).json({
         error: 'Failed to get fleet context',
+        details: error.message
+      });
+    }
+  }
+
+  /**
+   * Execute a safe AI-suggested action (e.g., assign driver, generate report)
+   */
+  async executeAction(req, res) {
+    try {
+      const user = req.user;
+      const { action } = req.body || {};
+
+      if (!user) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+      if (!action) {
+        return res.status(400).json({ error: 'Action payload is required' });
+      }
+
+      const result = await aiAssistantService.executeAction(user, action);
+
+      logger.info('AI action executed', { userId: user.id || user._id, type: action.type });
+
+      return res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      logger.error('Error executing AI action', { error: error.message });
+      return res.status(500).json({
+        error: 'Failed to execute action',
         details: error.message
       });
     }

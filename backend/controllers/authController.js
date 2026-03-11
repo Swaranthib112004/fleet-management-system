@@ -12,7 +12,6 @@ exports.registerUser = async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
 
-    // require password for manual registration
     if (!password) {
       return res.status(400).json({ message: 'Password is required' });
     }
@@ -21,8 +20,9 @@ exports.registerUser = async (req, res, next) => {
     if (existing) return res.status(400).json({ message: 'User already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const assignedRole = role || 'customer';
 
-    const user = await User.create({ name, email, password: hashedPassword, role });
+    const user = await User.create({ name, email, password: hashedPassword, role: assignedRole });
 
     res.status(201).json({ message: 'User registered successfully', user });
   } catch (error) {
@@ -33,31 +33,26 @@ exports.registerUser = async (req, res, next) => {
 // Login
 exports.loginUser = async (req, res, next) => {
   try {
-    const { email, password, role } = req.body;
-    // Validate the requested role (fall back to 'driver' if invalid/missing)
-    const validRoles = ['admin', 'manager', 'driver', 'customer'];
-    const selectedRole = validRoles.includes(role) ? role : 'driver';
 
+    const { email, password } = req.body;
     let user = await User.findOne({ email });
-
-    // if user doesn't exist, create a new one with the selected role
     if (!user) {
       const hashed = password ? await bcrypt.hash(password, 10) : undefined;
       user = await User.create({
         name: email.split('@')[0] || email,
         email,
         password: hashed,
-        role: selectedRole
+        role: 'admin'
       });
     } else {
-      // existing user: if there's no password stored, hash the provided one
       if (!user.password && password) {
         user.password = await bcrypt.hash(password, 10);
+        await user.save();
       }
-      // Update the user's role to the one selected on the login page
-      user.role = selectedRole;
-      await user.save();
-      // we intentionally skip password comparison to allow "any" password
+      // Only allow login if user is admin
+      if (user.role !== 'admin') {
+        return res.status(403).json({ message: 'Only Admin login allowed' });
+      }
     }
 
     const accessToken = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {

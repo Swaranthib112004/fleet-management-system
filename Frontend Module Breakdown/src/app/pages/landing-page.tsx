@@ -28,6 +28,58 @@ export function LandingPage() {
       .then(res => res.text())
       .then(text => console.log('backend says:', text))
       .catch(err => console.error('backend error', err));
+
+    // #region agent log
+    // Debug: capture basic CSS / Tailwind presence diagnostics on first render.
+    fetch('http://127.0.0.1:7512/ingest/2137d9ff-2cee-4a27-9f75-e5733aef43aa', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Debug-Session-Id': '578949'
+      },
+      body: JSON.stringify({
+        sessionId: '578949',
+        runId: 'css-debug-landing',
+        hypothesisId: 'H1',
+        location: 'landing-page.tsx:27',
+        message: 'LandingPage mounted; CSS diagnostics',
+        data: (() => {
+          let testBg = '';
+          try {
+            const el = document.createElement('div');
+            el.className = 'bg-blue-600';
+            el.style.position = 'absolute';
+            el.style.left = '-9999px';
+            document.body.appendChild(el);
+            testBg = window.getComputedStyle(el).backgroundColor;
+            document.body.removeChild(el);
+          } catch (e) {
+            testBg = 'error:' + (e as Error).message;
+          }
+
+          let styleSheetHrefs: string[] = [];
+          try {
+            styleSheetHrefs = Array.from(document.styleSheets)
+              .map((s) => (s.href ? String(s.href) : 'inline'))
+              .slice(0, 10);
+          } catch {
+            styleSheetHrefs = ['error-reading-stylesheets'];
+          }
+
+          const styleTags = Array.from(
+            document.querySelectorAll('style,link[rel="stylesheet"]')
+          ).length;
+
+          return {
+            testBg,
+            styleSheetHrefs,
+            styleTags
+          };
+        })(),
+        timestamp: Date.now()
+      })
+    }).catch(() => {});
+    // #endregion agent log
   }, []);
 
   return (
@@ -48,9 +100,14 @@ export function LandingPage() {
             <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
               <a href="#features" className="hover:text-blue-600 transition-colors">Features</a>
               <a href="#how-it-works" className="hover:text-blue-600 transition-colors">How it works</a>
-              <Link to="/login" className="px-6 py-2.5 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-md shadow-blue-100">
-                Sign In
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link to="/login" className="px-5 py-2.5 rounded-full bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 transition-all font-bold">
+                  Log in
+                </Link>
+                <Link to="/register" className="px-6 py-2.5 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-md shadow-blue-100 font-bold">
+                  Register
+                </Link>
+              </div>
             </div>
 
             <button className="md:hidden p-2" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -67,7 +124,8 @@ export function LandingPage() {
             <a href="#features" onClick={() => setMobileMenuOpen(false)}>Features</a>
             <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How it works</a>
             <hr />
-            <Link to="/login" className="w-full py-4 rounded-xl bg-blue-600 text-white text-center">Sign In</Link>
+            <Link to="/login" className="w-full py-4 rounded-xl border border-gray-200 text-gray-900 text-center font-bold">Log in</Link>
+            <Link to="/register" className="w-full py-4 rounded-xl bg-blue-600 text-white text-center font-bold">Register</Link>
           </div>
         </div>
       )}
@@ -93,9 +151,12 @@ export function LandingPage() {
                 Streamline operations, optimize routes, and reduce maintenance costs with the world's most advanced logistics platform.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Link to="/login" className="px-8 py-4 rounded-xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-200 group">
-                  Sign In to Dashboard
+                <Link to="/register" className="px-8 py-4 rounded-xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-200 group">
+                  Start for free
                   <ArrowRight className="group-hover:translate-x-1 transition-transform" />
+                </Link>
+                <Link to="/login" className="px-8 py-4 rounded-xl bg-white border border-gray-200 text-gray-900 font-bold text-lg hover:bg-gray-50 transition-all flex items-center justify-center gap-2">
+                  Log in
                 </Link>
               </div>
             </motion.div>

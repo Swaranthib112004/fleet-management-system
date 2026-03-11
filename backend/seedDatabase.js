@@ -63,9 +63,7 @@ async function seed() {
     console.log('👥 Seeding roles …');
     const roles = await Role.insertMany([
         { name: 'admin', count: 2, perms: 'all' },
-        { name: 'manager', count: 3, perms: 'fleet,drivers,maintenance,routes,analytics,documents' },
         { name: 'driver', count: 8, perms: 'routes,vehicles' },
-        { name: 'customer', count: 5, perms: 'tracking,documents' },
     ]);
     console.log(`   ✔ ${roles.length} roles.\n`);
 
@@ -76,10 +74,6 @@ async function seed() {
         // Admins
         { name: 'Admin', email: 'admin@fleet.com', password: hash, role: 'admin' },
         { name: 'Sanjay Gupta', email: 'sanjay@fleet.com', password: hash, role: 'admin' },
-        // Managers
-        { name: 'Priya Sharma', email: 'priya@fleet.com', password: hash, role: 'manager' },
-        { name: 'Rahul Verma', email: 'rahul@fleet.com', password: hash, role: 'manager' },
-        { name: 'Anita Desai', email: 'anita@fleet.com', password: hash, role: 'manager' },
         // Drivers
         { name: 'Rajesh Kumar', email: 'rajesh@fleet.com', password: hash, role: 'driver' },
         { name: 'Amit Singh', email: 'amit@fleet.com', password: hash, role: 'driver' },
@@ -89,12 +83,6 @@ async function seed() {
         { name: 'Arun Joshi', email: 'arun@fleet.com', password: hash, role: 'driver' },
         { name: 'Manoj Tiwari', email: 'manoj@fleet.com', password: hash, role: 'driver' },
         { name: 'Kiran Bhat', email: 'kiran@fleet.com', password: hash, role: 'driver' },
-        // Customers
-        { name: 'Neha Kapoor', email: 'neha@customer.com', password: hash, role: 'customer' },
-        { name: 'Vivek Mehta', email: 'vivek@customer.com', password: hash, role: 'customer' },
-        { name: 'Pooja Nair', email: 'pooja@customer.com', password: hash, role: 'customer' },
-        { name: 'Rohan Das', email: 'rohan@customer.com', password: hash, role: 'customer' },
-        { name: 'Kavita Jain', email: 'kavita@customer.com', password: hash, role: 'customer' },
     ]);
     console.log(`   ✔ ${users.length} users (password: Admin@123).\n`);
 

@@ -6,9 +6,10 @@ const { createReminderSchema } = require('../validators/reminderValidator');
 const { verifyToken } = require('../middleware/authMiddleware');
 const { requireRole } = require('../middleware/roleMiddleware');
 
-router.post('/', verifyToken, requireRole('admin','manager'), validate(createReminderSchema), reminderController.createReminder);
-router.get('/', verifyToken, requireRole('admin','manager'), reminderController.getReminders);
+router.post('/', verifyToken, requireRole('admin'), validate(createReminderSchema), reminderController.createReminder);
+router.get('/', verifyToken, requireRole('admin'), reminderController.getReminders);
 router.get('/:id', verifyToken, reminderController.getReminder);
-router.post('/:id/cancel', verifyToken, requireRole('admin','manager'), reminderController.cancelReminder);
+router.post('/:id/cancel', verifyToken, requireRole('admin'), reminderController.cancelReminder);
+router.put('/:id', verifyToken, requireRole('admin'), reminderController.updateReminder);
 
 module.exports = router;

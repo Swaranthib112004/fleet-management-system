@@ -19,4 +19,17 @@ exports.getReminder = async (req, res, next) => {
   try { const r = await Reminder.findById(req.params.id); if (!r) return res.status(404).json({ message: 'Not found' }); res.json(r); } catch (err) { next(err); }
 };
 
-exports.cancelReminder = async (req, res, next) => { try { const r = await Reminder.findById(req.params.id); if (!r) return res.status(404).json({ message: 'Not found' }); r.status = 'cancelled'; await r.save(); res.json({ message: 'Cancelled' }); } catch (err) { next(err); } };
+exports.cancelReminder = async (req, res, next) => { try { const r = await Reminder.findById(req.params.id); if (!r) return res.status(404).json({ message: 'Not found' }); r.status = 'cancelled'; await r.save(); res.json({ message: 'Cancelled', reminder: r }); } catch (err) { next(err); } };
+
+exports.updateReminder = async (req, res, next) => {
+  try {
+    const r = await Reminder.findById(req.params.id);
+    if (!r) return res.status(404).json({ message: 'Not found' });
+    const { status, scheduleAt, message } = req.body;
+    if (status != null) r.status = status;
+    if (scheduleAt != null) r.scheduleAt = new Date(scheduleAt);
+    if (message != null) r.message = message;
+    await r.save();
+    res.json({ message: 'Reminder updated', reminder: r });
+  } catch (err) { next(err); }
+};

@@ -1,10 +1,10 @@
 const mongoose = require('mongoose');
 
+// user can be ObjectId (ref User) or string (e.g. "current", or display name from frontend)
 const auditSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  user: { type: mongoose.Schema.Types.Mixed },
   action: { type: String, required: true },
   target: { type: String },
-  // "time" is effectively createdAt; we rely on timestamps
 }, { timestamps: true });
 
 module.exports = mongoose.model('Audit', auditSchema);

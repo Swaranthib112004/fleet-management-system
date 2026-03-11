@@ -4,6 +4,7 @@ import { ProtectedRoute } from "./lib/ProtectedRoute";
 import { Dashboard } from "./pages/dashboard";
 import { LandingPage } from "./pages/landing-page";
 import { LoginPage } from "./pages/login-page";
+import { RegisterPage } from "./pages/register-page";
 import { Shell } from "./components/shell";
 import { VehiclesPage } from "./pages/vehicles-page";
 import { DriversPage } from "./pages/drivers-page";
@@ -12,6 +13,9 @@ import { RoutingPage } from "./pages/routing-page";
 import { AnalyticsPage } from "./pages/analytics-page";
 import { DocumentsPage } from "./pages/documents-page";
 import { SettingsPage } from "./pages/settings-page";
+import { AuditLogsPage } from "./pages/audit-logs-page";
+import { ManagerDashboard } from "./pages/manager-dashboard";
+// import { CustomerDashboard } from "./pages/customer-dashboard";
 
 // small fallback component used when no route matches
 function NotFound() {
@@ -32,6 +36,11 @@ export const router = createBrowserRouter([
   {
     path: "/login",
     element: <LoginPage />,
+    errorElement: <NotFound />
+  },
+  {
+    path: "/register",
+    element: <RegisterPage />,
     errorElement: <NotFound />
   },
   {
@@ -79,10 +88,16 @@ export const router = createBrowserRouter([
         errorElement: <NotFound />
       },
       {
+        path: "audit-logs",
+        element: <AuditLogsPage />,
+        errorElement: <NotFound />
+      },
+      {
         path: "settings",
         element: <SettingsPage />,
         errorElement: <NotFound />
       },
+      // Removed manager-dashboard and customer-dashboard routes
     ],
   },
   // catch-all route prevents blank white screen when wrong path entered

@@ -31,12 +31,12 @@ class RouteController {
       const defaultStart = {
         name: startLocation?.name || 'Start',
         latitude: typeof startLocation?.latitude === 'number' ? startLocation.latitude : null,
-        longitude: typeof startLocation?.longitude === 'number' ? startLocation.longitude : null
+        longitude: typeof startLocation?.longitude === 'number' ? startLocation.longitude : null,
       };
       const defaultEnd = {
         name: endLocation?.name || 'End',
         latitude: typeof endLocation?.latitude === 'number' ? endLocation.latitude : null,
-        longitude: typeof endLocation?.longitude === 'number' ? endLocation.longitude : null
+        longitude: typeof endLocation?.longitude === 'number' ? endLocation.longitude : null,
       };
 
       const route = new Route({
@@ -53,7 +53,7 @@ class RouteController {
         totalStops: totalStops || (waypoints ? waypoints.length : 0),
         totalDistance: totalDistance || 0,
         totalDuration: totalDuration || 0,
-        createdBy: req.user?._id
+        createdBy: req.user?._id,
       });
 
       await route.save();
@@ -64,7 +64,7 @@ class RouteController {
       res.status(201).json({
         success: true,
         message: 'Route created successfully',
-        data: route
+        data: route,
       });
     } catch (error) {
       logger.error('Error creating route', { error: error.message, stack: error.stack });
@@ -72,7 +72,7 @@ class RouteController {
         success: false,
         message: 'Error creating route',
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
       });
     }
   }
@@ -109,15 +109,15 @@ class RouteController {
           page: parseInt(page),
           limit: parseInt(limit),
           total,
-          pages: Math.ceil(total / limit)
-        }
+          pages: Math.ceil(total / limit),
+        },
       });
     } catch (error) {
       logger.error('Error fetching routes', { error: error.message });
       res.status(500).json({
         success: false,
         message: 'Error fetching routes',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -133,20 +133,20 @@ class RouteController {
       if (!route) {
         return res.status(404).json({
           success: false,
-          message: 'Route not found'
+          message: 'Route not found',
         });
       }
 
       res.status(200).json({
         success: true,
-        data: route
+        data: route,
       });
     } catch (error) {
       logger.error('Error fetching route', { error: error.message });
       res.status(500).json({
         success: false,
         message: 'Error fetching route',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -161,35 +161,19 @@ class RouteController {
       if (!route) {
         return res.status(404).json({
           success: false,
-          message: 'Route not found'
+          message: 'Route not found',
         });
       }
 
-      const {
-        status,
-        waypoints,
-        actualEndTime,
-        routePolyline,
-        totalDistance,
-        totalDuration,
-        isOptimized,
-        optimizationScore
-      } = req.body;
+      const { status, waypoints, actualEndTime } = req.body;
 
       if (status) route.status = status;
       if (waypoints) route.waypoints = waypoints;
-      if (routePolyline) route.routePolyline = routePolyline;
-      if (typeof isOptimized !== 'undefined') route.isOptimized = isOptimized;
-      if (optimizationScore) route.optimizationScore = optimizationScore;
-      if (totalDistance) route.totalDistance = totalDistance;
-
       if (actualEndTime) {
         route.actualEndTime = actualEndTime;
         if (route.startTime) {
-          route.totalDuration = (new Date(actualEndTime) - route.startTime) / 60000;
+          route.totalDuration = (new Date(actualEndTime) - route.startTime) / 60000; // minutes
         }
-      } else if (totalDuration) {
-        route.totalDuration = totalDuration;
       }
 
       route.updatedBy = req.user._id;
@@ -201,14 +185,14 @@ class RouteController {
       res.status(200).json({
         success: true,
         message: 'Route updated successfully',
-        data: route
+        data: route,
       });
     } catch (error) {
       logger.error('Error updating route', { error: error.message });
       res.status(500).json({
         success: false,
         message: 'Error updating route',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -222,7 +206,7 @@ class RouteController {
 
       const routeData = {
         routeCode: `OPT-${uuidv4().slice(0, 8)}`,
-        waypoints
+        waypoints,
       };
 
       const parameters = {
@@ -232,8 +216,16 @@ class RouteController {
         fuelPrice: fuelPrice || 1.5,
         driverHourlyRate: driverHourlyRate || 15,
         numAlternatives: numAlternatives || 2,
-        constraints
+        constraints,
       };
+
+      // Block optimization if route is completed
+      if (routeData.status === 'completed') {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot optimize a completed route.',
+        });
+      }
 
       // Perform optimization
       const optimization = await routeOptimizationService.optimizeRoute(routeData, parameters);
@@ -252,18 +244,33 @@ class RouteController {
       }
 
       logger.info('Route optimized successfully', { routeCode: routeData.routeCode });
+      // Debug log for routePolyline
+      if (optimization.metrics?.routePolyline) {
+        logger.info('routePolyline length:', optimization.metrics.routePolyline.length);
+        logger.info('routePolyline sample:', {
+          first: optimization.metrics.routePolyline[0],
+          last: optimization.metrics.routePolyline[optimization.metrics.routePolyline.length - 1],
+        });
+      } else {
+        logger.warn('No routePolyline returned from optimization');
+      }
 
       res.status(200).json({
         success: true,
         message: 'Route optimized successfully',
-        data: { ...optimization, path }
+        data: {
+          ...optimization,
+          path,
+          routePolyline: optimization.metrics?.routePolyline || null,
+          polylineValid: Array.isArray(optimization.metrics?.routePolyline) && optimization.metrics.routePolyline.length > 1,
+        },
       });
     } catch (error) {
       logger.error('Error optimizing route', { error: error.message });
       res.status(500).json({
         success: false,
         message: 'Error optimizing route',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -287,7 +294,7 @@ class RouteController {
         alternativeRoutes: alternatives || [],
         recommendations: recommendations || [],
         status: 'completed',
-        createdBy: req.user._id
+        createdBy: req.user._id,
       });
 
       await optimization.save();
@@ -298,14 +305,14 @@ class RouteController {
       res.status(201).json({
         success: true,
         message: 'Optimization saved successfully',
-        data: optimization
+        data: optimization,
       });
     } catch (error) {
       logger.error('Error saving optimization', { error: error.message });
       res.status(500).json({
         success: false,
         message: 'Error saving optimization',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -323,7 +330,7 @@ class RouteController {
       if (!optimization) {
         return res.status(404).json({
           success: false,
-          message: 'Optimization not found'
+          message: 'Optimization not found',
         });
       }
 
@@ -339,14 +346,14 @@ class RouteController {
       res.status(200).json({
         success: true,
         message: 'Optimization accepted successfully',
-        data: optimization
+        data: optimization,
       });
     } catch (error) {
       logger.error('Error accepting optimization', { error: error.message });
       res.status(500).json({
         success: false,
         message: 'Error accepting optimization',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -380,15 +387,15 @@ class RouteController {
           page: parseInt(page),
           limit: parseInt(limit),
           total,
-          pages: Math.ceil(total / limit)
-        }
+          pages: Math.ceil(total / limit),
+        },
       });
     } catch (error) {
       logger.error('Error fetching optimization history', { error: error.message });
       res.status(500).json({
         success: false,
         message: 'Error fetching optimization history',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -404,20 +411,20 @@ class RouteController {
       if (!optimization) {
         return res.status(404).json({
           success: false,
-          message: 'Optimization not found'
+          message: 'Optimization not found',
         });
       }
 
       res.status(200).json({
         success: true,
-        data: optimization
+        data: optimization,
       });
     } catch (error) {
       logger.error('Error fetching optimization', { error: error.message });
       res.status(500).json({
         success: false,
         message: 'Error fetching optimization',
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -432,7 +439,7 @@ class RouteController {
       if (!route) {
         return res.status(404).json({
           success: false,
-          message: 'Route not found'
+          message: 'Route not found',
         });
       }
 
@@ -440,14 +447,14 @@ class RouteController {
 
       res.status(200).json({
         success: true,
-        message: 'Route deleted successfully()'
+        message: 'Route deleted successfully()',
       });
     } catch (error) {
       logger.error('Error deleting route', { error: error.message });
       res.status(500).json({
         success: false,
         message: 'Error deleting route',
-        error: error.message
+        error: error.message,
       });
     }
   }

@@ -25,7 +25,7 @@ import type { NotificationSetting, Role, AuditLog } from "../lib/types";
 
 const TABS = [
    { id: "general", label: "General", icon: Globe },
-   { id: "roles", label: "User Roles", icon: User },
+   // { id: "roles", label: "User Roles", icon: User },
    { id: "notifications", label: "Notifications", icon: Bell },
    { id: "security", label: "Security", icon: Shield },
    { id: "audit", label: "Audit Logs", icon: FileSearch },
@@ -37,6 +37,10 @@ export function SettingsPage() {
    const [roles, setRoles] = React.useState<Role[]>([]);
    const [auditLogs, setAuditLogs] = React.useState<AuditLog[]>([]);
    const [auditFilter, setAuditFilter] = React.useState("");
+   const [auditActionFilter, setAuditActionFilter] = React.useState("");
+   const [auditUserFilter, setAuditUserFilter] = React.useState("");
+   const [auditDateFrom, setAuditDateFrom] = React.useState("");
+   const [auditDateTo, setAuditDateTo] = React.useState("");
    const [loadingData, setLoadingData] = React.useState(false);
 
    // General settings
@@ -99,13 +103,36 @@ export function SettingsPage() {
    const getUserName = (user: AuditLog['user']): string =>
       typeof user === 'object' ? (user?.name || user?.email || 'System') : (user || 'System');
 
+   const auditActionOptions = React.useMemo(() => {
+      const set = new Set(auditLogs.map(l => (l.action || '').trim()).filter(Boolean));
+      return ['', ...Array.from(set).sort()];
+   }, [auditLogs]);
+
+   const auditUserOptions = React.useMemo(() => {
+      const set = new Set(auditLogs.map(l => getUserName(l.user)).filter(Boolean));
+      return ['', ...Array.from(set).sort()];
+   }, [auditLogs]);
+
    const filteredAuditLogs = auditLogs.filter((log) => {
-      if (!auditFilter) return true;
-      const q = auditFilter.toLowerCase();
       const userName = getUserName(log.user).toLowerCase();
       const action = (log.action || '').toLowerCase();
       const target = (log.target || '').toLowerCase();
-      return userName.includes(q) || action.includes(q) || target.includes(q);
+
+      if (auditFilter) {
+         const q = auditFilter.toLowerCase();
+         if (!userName.includes(q) && !action.includes(q) && !target.includes(q)) return false;
+      }
+      if (auditActionFilter && (log.action || '') !== auditActionFilter) return false;
+      if (auditUserFilter && getUserName(log.user) !== auditUserFilter) return false;
+      if (auditDateFrom) {
+         const d = log.createdAt ? new Date(log.createdAt).toISOString().slice(0, 10) : '';
+         if (d < auditDateFrom) return false;
+      }
+      if (auditDateTo) {
+         const d = log.createdAt ? new Date(log.createdAt).toISOString().slice(0, 10) : '';
+         if (d > auditDateTo) return false;
+      }
+      return true;
    });
 
    const reloadNotifications = async () => {
@@ -278,61 +305,41 @@ export function SettingsPage() {
                   </div>
                )}
 
-               {activeTab === "security" && (
-                  <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-8">
-                     <div>
-                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Key size={20} className="text-blue-600" /> Password Policy</h3>
-                        <div className="space-y-4">
-                           <div className="space-y-1.5 max-w-xs">
-                              <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Minimum Length</label>
-                              <input
-                                 type="number"
-                                 min="6"
-                                 max="32"
-                                 value={securitySettings.minPasswordLength}
-                                 onChange={(e) => setSecuritySettings((p) => ({ ...p, minPasswordLength: Number(e.target.value) }))}
-                                 className="w-full px-4 py-3 rounded-xl border border-gray-100 bg-gray-50/50 focus:bg-white focus:border-blue-300 focus:ring-4 focus:ring-blue-100 outline-none transition-all font-semibold text-gray-900"
-                              />
-                           </div>
-                           <div className="flex items-center gap-2">
-                              <input
-                                 type="checkbox"
-                                 id="mfa"
-                                 checked={securitySettings.require2FA}
-                                 onChange={(e) => {
-                                    setSecuritySettings((p) => ({ ...p, require2FA: e.target.checked }));
-                                    toast.success(e.target.checked ? "2FA enabled" : "2FA disabled");
-                                 }}
-                                 className="w-5 h-5 rounded border-gray-300 text-blue-600 cursor-pointer"
-                              />
-                              <label htmlFor="mfa" className="text-sm font-bold text-gray-700 cursor-pointer">Require Two-Factor Authentication (2FA)</label>
-                           </div>
-                        </div>
-                     </div>
-                  </div>
-               )}
+               {/* Removed roles tab and management UI */}
+               <div>
+                  <input type="checkbox" id="mfa" />
+                  <label htmlFor="mfa" className="text-sm font-bold text-gray-700 cursor-pointer">Require Two-Factor Authentication (2FA)</label>
+               </div>
 
                {activeTab === "audit" && (
                   <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-6">
-                     <div className="flex items-center justify-between">
+                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <h3 className="text-xl font-bold">Audit Logs</h3>
-                        <div className="flex gap-2">
-                           <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100 w-56">
-                              <FileSearch size={14} className="text-gray-400" />
-                              <input
-                                 type="text"
-                                 placeholder="Filter user or resource..."
-                                 value={auditFilter}
-                                 onChange={(e) => setAuditFilter(e.target.value)}
-                                 className="bg-transparent border-none focus:ring-0 text-xs outline-none focus:border-blue-300 w-full"
-                              />
-                              {auditFilter && <button onClick={() => setAuditFilter("")}><X size={12} className="text-gray-400" /></button>}
+                        <div className="flex flex-wrap gap-2 items-center">
+                           <select value={auditActionFilter} onChange={(e) => setAuditActionFilter(e.target.value)} className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-bold bg-gray-50 focus:bg-white focus:border-blue-300 outline-none">
+                              <option value="">All actions</option>
+                              {auditActionOptions.filter(Boolean).map((a) => <option key={a} value={a}>{a}</option>)}
+                           </select>
+                           <select value={auditUserFilter} onChange={(e) => setAuditUserFilter(e.target.value)} className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-bold bg-gray-50 focus:bg-white focus:border-blue-300 outline-none min-w-[100px]">
+                              <option value="">All users</option>
+                              {auditUserOptions.filter(Boolean).map((u) => <option key={u} value={u}>{u}</option>)}
+                           </select>
+                           <input type="date" value={auditDateFrom} onChange={(e) => setAuditDateFrom(e.target.value)} className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-bold bg-gray-50 focus:bg-white focus:border-blue-300 outline-none" placeholder="From" />
+                           <input type="date" value={auditDateTo} onChange={(e) => setAuditDateTo(e.target.value)} className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-bold bg-gray-50 focus:bg-white focus:border-blue-300 outline-none" placeholder="To" />
+                           <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100 w-48">
+                              <FileSearch size={14} className="text-gray-400 shrink-0" />
+                              <input type="text" placeholder="Search..." value={auditFilter} onChange={(e) => setAuditFilter(e.target.value)} className="bg-transparent border-none focus:ring-0 text-xs outline-none w-full" />
+                              {(auditFilter || auditActionFilter || auditUserFilter || auditDateFrom || auditDateTo) && (
+                                 <button onClick={() => { setAuditFilter(""); setAuditActionFilter(""); setAuditUserFilter(""); setAuditDateFrom(""); setAuditDateTo(""); }} className="shrink-0 text-gray-400 hover:text-gray-600"><X size={12} /></button>
+                              )}
                            </div>
                         </div>
                      </div>
                      <div className="space-y-4">
                         {filteredAuditLogs.length === 0 ? (
-                           <p className="text-center text-gray-400 font-medium py-8">No matching audit logs.</p>
+                           <p className="text-center text-gray-400 font-medium py-8">
+                              {(auditFilter || auditActionFilter || auditUserFilter || auditDateFrom || auditDateTo) ? "No audit logs match the current filters." : "No audit logs yet."}
+                           </p>
                         ) : (
                            filteredAuditLogs.map((log) => (
                               <div key={log.id} className="flex items-center justify-between text-xs py-2 border-b border-gray-50">

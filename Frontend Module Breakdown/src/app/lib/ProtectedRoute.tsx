@@ -4,13 +4,13 @@ import { useAuth } from "./auth";
 
 // Define which routes each role can access
 const ROUTE_PERMISSIONS: Record<string, string[]> = {
-  "/app": ["admin", "manager", "driver", "customer"],
-  "/app/fleet/vehicles": ["admin", "manager"],
-  "/app/fleet/drivers": ["admin", "manager"],
-  "/app/maintenance": ["admin", "manager"],
-  "/app/routing": ["admin", "manager", "driver", "customer"],
-  "/app/analytics": ["admin", "manager"],
-  "/app/documents": ["admin", "manager", "customer"],
+  "/app": ["admin", "driver"],
+  "/app/fleet/vehicles": ["admin", "driver"],
+  "/app/fleet/drivers": ["admin", "driver"],
+  "/app/maintenance": ["admin", "driver"],
+  "/app/routing": ["admin", "driver"],
+  "/app/analytics": ["admin"],
+  "/app/documents": ["admin"],
   "/app/settings": ["admin"],
 };
 

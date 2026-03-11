@@ -30,13 +30,16 @@ passport.use(new GoogleStrategy(googleConfig, async (req, accessToken, refreshTo
       try {
         const decoded = decodeURIComponent(req.query.state);
         const stateObj = JSON.parse(decoded);
-        if (stateObj.role && ['admin', 'manager', 'driver', 'customer'].includes(stateObj.role)) {
+        if (stateObj.role && ['admin', 'driver'].includes(stateObj.role)) {
           requestedRole = stateObj.role;
         }
       } catch (e) {
         // ignore malformed state
       }
     }
+
+    console.log('Requested role:', requestedRole);
+    console.log('User email:', email);
 
     // Check if user already exists
     let user = await User.findOne({ email });
@@ -53,13 +56,10 @@ passport.use(new GoogleStrategy(googleConfig, async (req, accessToken, refreshTo
 
     // determine role for new user
     let role = requestedRole || 'driver'; // default driver
-
     // legacy domain-mapping fallback if no explicit role requested
     if (!requestedRole) {
       if (email.includes('@admin.')) {
         role = 'admin';
-      } else if (email.includes('@manager.')) {
-        role = 'manager';
       }
     }
 

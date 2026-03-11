@@ -8,6 +8,7 @@ const maintenanceSchema = new mongoose.Schema({
   cost: { type: Number },
   date: { type: String },
   performedAt: { type: Date },
+  nextDueAt: { type: Date }, // Added field for next service due date
   status: { type: String, enum: ['Scheduled', 'In Progress', 'Completed'], default: 'Scheduled' },
   createdBy: { type: mongoose.Schema.Types.Mixed }
 }, { timestamps: true });

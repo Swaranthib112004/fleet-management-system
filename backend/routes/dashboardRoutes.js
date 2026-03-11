@@ -7,7 +7,6 @@ const {
   getPieData,
   getAnalytics,
   getDriverDashboard,
-  getCustomerDashboard,
 } = require('../controllers/dashboardController');
 const { verifyToken } = require('../middleware/authMiddleware');
 
@@ -20,6 +19,6 @@ router.get('/analytics', verifyToken, getAnalytics);
 
 // Role-specific dashboards
 router.get('/driver', verifyToken, getDriverDashboard);
-router.get('/customer', verifyToken, getCustomerDashboard);
+
 
 module.exports = router;

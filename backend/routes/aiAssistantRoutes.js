@@ -45,4 +45,12 @@ router.post('/clear-history', verifyToken, (req, res) => aiAssistantController.c
  */
 router.get('/context', verifyToken, (req, res) => aiAssistantController.getFleetContext(req, res));
 
+/**
+ * @route POST /api/ai/action
+ * @description Execute a safe AI-suggested action (assign driver, generate report, etc.)
+ * @requires Authentication
+ * @body {Object} action - Parsed action payload from assistantSuggestion
+ */
+router.post('/action', verifyToken, (req, res) => aiAssistantController.executeAction(req, res));
+
 module.exports = router;

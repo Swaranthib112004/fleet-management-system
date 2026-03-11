@@ -5,6 +5,20 @@ exports.createMaintenance = async (req, res, next) => {
     const data = req.body;
     data.createdBy = req.user ? req.user.id : undefined;
     const m = await Maintenance.create(data);
+    // Automatically create a reminder if nextDueAt is present
+    if (data.nextDueAt) {
+      const Reminder = require('../models/reminderModel');
+      const reminder = await Reminder.create({
+        user: req.user ? req.user.id : undefined,
+        vehicle: data.vehicle,
+        type: 'maintenance',
+        message: `Maintenance due for vehicle ${data.vehicle}`,
+        scheduleAt: data.nextDueAt,
+        createdBy: req.user ? req.user.id : undefined,
+        status: 'pending'
+      });
+      console.log('Created reminder:', reminder);
+    }
     res.status(201).json({ message: 'Maintenance logged', maintenance: m });
   } catch (err) { next(err); }
 };
@@ -39,6 +53,33 @@ exports.getMaintenance = async (req, res, next) => {
   try { const m = await Maintenance.findById(req.params.id); if (!m) return res.status(404).json({ message: 'Not found' }); res.json(m); } catch (err) { next(err); }
 };
 
-exports.updateMaintenance = async (req, res, next) => { try { const update = req.body; update.updatedBy = req.user ? req.user.id : undefined; const m = await Maintenance.findByIdAndUpdate(req.params.id, update, { new: true }); if (!m) return res.status(404).json({ message: 'Not found' }); res.json({ message: 'Updated', maintenance: m }); } catch (err) { next(err); } };
+exports.updateMaintenance = async (req, res, next) => { 
+  try { 
+    const update = req.body; 
+    update.updatedBy = req.user ? req.user.id : undefined; 
+    const m = await Maintenance.findByIdAndUpdate(req.params.id, update, { new: true }); 
+    if (!m) return res.status(404).json({ message: 'Not found' }); 
+    
+    if (update.nextDueAt) {
+      const Reminder = require('../models/reminderModel');
+      const existing = await Reminder.findOne({ vehicle: m.vehicle, type: 'maintenance', scheduleAt: update.nextDueAt });
+      if (!existing) {
+        await Reminder.create({
+          user: req.user ? req.user.id : m.createdBy,
+          vehicle: m.vehicle,
+          type: 'maintenance',
+          message: `Maintenance due for vehicle ${m.vehicle}`,
+          scheduleAt: update.nextDueAt,
+          createdBy: req.user ? req.user.id : m.createdBy,
+          status: 'pending'
+        });
+      }
+    }
+    
+    res.json({ message: 'Updated', maintenance: m }); 
+  } catch (err) { 
+    next(err); 
+  } 
+};
 
 exports.deleteMaintenance = async (req, res, next) => { try { const m = await Maintenance.findByIdAndDelete(req.params.id); if (!m) return res.status(404).json({ message: 'Not found' }); res.json({ message: 'Deleted' }); } catch (err) { next(err); } };

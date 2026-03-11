@@ -1,0 +1,8 @@
+
+Frontend Module Breakdown\src\app\pages\routing-page.tsx:640:         
+const startLat = r.startLocation?.latitude ?? 
+r.waypoints?.[0]?.latitude ?? 28.6139;
+Frontend Module Breakdown\src\app\pages\routing-page.tsx:664:         
+   waypointPath.push({ lat: startLat, lng: startLng });
+
+

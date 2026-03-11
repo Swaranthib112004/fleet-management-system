@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
    Plus, MapPin, Navigation, Search, Play, RotateCw, ChevronRight,
    Maximize2, X, Clock, Zap, Settings, Trash2, Fuel, Gauge, Route,
@@ -8,7 +8,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { cn } from "../lib/utils";
-import { routesApi, trackedApi, vehiclesApi, driversApi } from "../lib/api";
+import { routesApi, trackedApi, vehiclesApi, driversApi, auditApi } from "../lib/api";
 import { LeafletMap } from "../components/LeafletMap";
 import { io } from "socket.io-client";
 import type { Route as RouteType, TrackedVehicle } from "../lib/types";
@@ -262,6 +262,7 @@ export function RoutingPage() {
       routeType: "standard"
    });
    const [optimizationMetrics, setOptimizationMetrics] = React.useState<any>(null);
+   const [optimizeError, setOptimizeError] = useState<string | null>(null);
 
    // Persistent headings per vehicle for smooth, natural movement (not random zigzag)
    const vehicleHeadingsRef = React.useRef<Record<string, number>>({});
@@ -280,147 +281,162 @@ export function RoutingPage() {
    const idleCount = trackedVehicles.filter(v => v.status === "idle").length;
    const offlineCount = trackedVehicles.filter(v => v.status === "offline").length;
 
+   const isCompleted = selectedTrip?.status === "completed";
+
    const handleOptimize = async () => {
-      let filledStops = [];
-
-      // If a trip is selected, use its waypoints
-      if (selectedTrip) {
-         if (selectedTrip.startLocation) {
-            filledStops.push(`${selectedTrip.startLocation.latitude},${selectedTrip.startLocation.longitude}`);
-         }
-         if (selectedTrip.waypoints) {
-            selectedTrip.waypoints.forEach((w: any) => {
-               filledStops.push(`${w.latitude},${w.longitude}`);
-            });
-         }
-         if (selectedTrip.endLocation) {
-            filledStops.push(`${selectedTrip.endLocation.latitude},${selectedTrip.endLocation.longitude}`);
-         }
-      } else {
-         // Otherwise use the manual stops from optimization tab
-         filledStops = stops.filter((s) => s.trim().length > 0);
-      }
-
-      if (filledStops.length < 2) {
-         toast.error("Please enter at least 2 stops or select a trip");
-         return;
-      }
-
-      const waypoints = filledStops.map((s) => {
-         const parts = s.split(',').map((x) => parseFloat(x.trim()));
-         const lat = parts[0];
-         const lng = parts[1];
-         // Don't default to 0,0 which breaks the central ocean map view
-         if (isFinite(lat) && isFinite(lng)) {
-            return { latitude: lat, longitude: lng };
-         }
-         return null;
-      }).filter(Boolean);
-
-      if (waypoints.length < 2) {
-         toast.error("Please enter valid coordinates in LAT,LNG format for at least 2 stops");
-         return;
-      }
-
-      setIsOptimizing(true);
-      setAiInsight("");
+      setOptimizeError(null);
       try {
-         const resp: any = await routesApi.optimize({
-            waypoints,
-            algorithm: "ai",
-         });
-         const data = resp.data || resp;
+         let filledStops = [];
 
-         const path = data.path || [];
-         const metrics = data.metrics || null;
-         setOptimizedPath(path);
-         setOptimizationMetrics(metrics);
-
-         // 🚀 Inject AI-optimized route waypoints into the tracked vehicle for the selected trip
-         // Critical: use routePolyline (real OSRM road geometry = the actual blue line)
-         // NOT data.path which only has 2-3 raw stop coordinates
-         const roadPolyline: { lat: number; lng: number }[] = metrics?.routePolyline || path;
-
-         if (roadPolyline.length > 1) {
-            const firstPoint = roadPolyline[0];
-            // Find vehicle by selectedTrip, OR fall back to first active moving vehicle
-            setTrackedVehicles(prev => {
-               const tripId = selectedTrip
-                  ? ((selectedTrip as any)._id || (selectedTrip as any).id)
-                  : null;
-               // Try to match on tripId; if no match, update the first moving vehicle
-               const hasMatch = tripId ? prev.some(v => v.routeId === tripId || v.id === tripId) : false;
-               return prev.map((v, idx) => {
-                  const isTarget = tripId
-                     ? (v.routeId === tripId || v.id === tripId)
-                     : (!hasMatch && idx === 0); // fallback: first vehicle
-                  if (!isTarget) return v;
-                  return {
-                     ...v,
-                     // Snap vehicle position to the start of the road line
-                     x: firstPoint.lng,
-                     y: firstPoint.lat,
-                     routeWaypoints: roadPolyline,
-                     waypointIndex: 0,
-                     status: 'moving' as const,
-                     speed: 65, // Ensure positive speed for simulation
-                     routeId: tripId || undefined // Explicitly tie to trip
-                  };
-               });
-            });
-         }
-
-         // Show which optimizer was actually used
-         const optimizerUsed = data.optimizerUsed || data.algorithm || 'unknown';
-         const isGpt = data.isGptOptimized === true;
-
-         // Generate AI insight based on metrics - ONLY if GPT-4 succeeded
-         if (data.metrics && isGpt) {
-            const m = data.metrics;
-            const insights = [];
-            if (m.distanceSaved > 0) insights.push(`Save ${m.distanceSaved} km (${m.efficiencyGain}% shorter)`);
-            if (m.timeSaved > 0) insights.push(`${m.timeSaved} min faster`);
-            if (m.costSavings > 0) insights.push(`₹${m.costSavings} cost savings`);
-            if (m.co2Reduction > 0) insights.push(`${m.co2Reduction} kg CO₂ reduced`);
-
-            setAiInsight(insights.length > 0 ? insights.join(" • ") + " (GPT-4 Powered)" : "Route optimized with GPT-4! 🚀");
-         }
-
-         if (data.recommendations?.length > 0) {
-            data.recommendations.forEach((r: string) => toast.info(r));
-         }
-
-         // Only show success toast if GPT-4 actually succeeded
-         // Hide fallback algorithm messages completely
-         if (isGpt) {
-            toast.success("Route optimized with GPT-4! 🚀");
-         } else {
-            // Silent success for fallback - no toast message
-            toast.info("Route optimization complete");
-         }
-
-         // 🚀 PERSIST IMMEDIATELY if we have a selected trip
-         if (selectedTrip && roadPolyline.length > 0) {
-            try {
-               const updateData: any = {
-                  routePolyline: roadPolyline,
-                  isOptimized: true,
-                  optimizationScore: metrics?.efficiencyGain || 0,
-                  totalDistance: metrics?.distance || 0,
-                  totalDuration: metrics?.duration || 0
-               };
-               // If it's a planned trip, maybe leave it planned? Or auto-activate?
-               // The user said "after starting trip", so let's assume they might click Start Trip later.
-               // But we definitely want to save the polyline NOW.
-               await routesApi.update(selectedTrip._id || selectedTrip.id!, updateData);
-               console.log("Optimized route persisted to DB");
-               await reloadRoutes(); // Refresh local state with saved data
-            } catch (saveErr) {
-               console.error("Failed to persist optimized route:", saveErr);
+         // If a trip is selected, use its waypoints
+         if (selectedTrip) {
+            if (selectedTrip.startLocation) {
+               filledStops.push(`${selectedTrip.startLocation.latitude},${selectedTrip.startLocation.longitude}`);
             }
+            if (selectedTrip.waypoints) {
+               selectedTrip.waypoints.forEach((w: any) => {
+                  filledStops.push(`${w.latitude},${w.longitude}`);
+               });
+            }
+            if (selectedTrip.endLocation) {
+               filledStops.push(`${selectedTrip.endLocation.latitude},${selectedTrip.endLocation.longitude}`);
+            }
+         } else {
+            // Otherwise use the manual stops from optimization tab
+            filledStops = stops.filter((s) => s.trim().length > 0);
          }
 
-         setIsOptimizing(false);
+         if (filledStops.length < 2) {
+            toast.error("Please enter at least 2 stops or select a trip");
+            return;
+         }
+
+         const waypoints = filledStops.map((s) => {
+            const parts = s.split(',').map((x) => parseFloat(x.trim()));
+            const lat = parts[0];
+            const lng = parts[1];
+            // Don't default to 0,0 which breaks the central ocean map view
+            if (isFinite(lat) && isFinite(lng)) {
+               return { latitude: lat, longitude: lng };
+            }
+            return null;
+         }).filter(Boolean);
+
+         if (waypoints.length < 2) {
+            toast.error("Please enter valid coordinates in LAT,LNG format for at least 2 stops");
+            return;
+         }
+
+         setIsOptimizing(true);
+         setAiInsight("");
+         try {
+            const resp: any = await routesApi.optimize({
+               waypoints,
+               algorithm: "ai",
+            });
+            const data = resp.data || resp;
+
+            const metrics = data.metrics || null;
+            // Use high-resolution road path for the line, but keep stops for markers
+            const roadPath = data.polylineValid && Array.isArray(data.routePolyline) && data.routePolyline.length > 1
+               ? data.routePolyline
+               : data.path || [];
+
+            setOptimizedPath(data.path || []); // Path for markers (stops sequence)
+            setOptimizationMetrics({ ...metrics, routePolyline: roadPath }); // High-res path for the line
+
+            if (roadPath.length > 1) {
+               const firstPoint = roadPath[0];
+               // Find vehicle by selectedTrip, OR fall back to first active moving vehicle
+               setTrackedVehicles(prev => {
+                  const tripId = selectedTrip
+                     ? ((selectedTrip as any)._id || (selectedTrip as any).id)
+                     : null;
+                  // Try to match on tripId; if no match, update the first moving vehicle
+                  const hasMatch = tripId ? prev.some(v => v.routeId === tripId || v.id === tripId) : false;
+                  return prev.map((v, idx) => {
+                     const isTarget = tripId
+                        ? (v.routeId === tripId || v.id === tripId)
+                        : (!hasMatch && idx === 0); // fallback: first vehicle
+                     if (!isTarget) return v;
+                     return {
+                        ...v,
+                        // Snap vehicle position to the start of the road line
+                        x: firstPoint.lng,
+                        y: firstPoint.lat,
+                        routeWaypoints: roadPath,
+                        waypointIndex: 0,
+                        status: 'moving' as const,
+                        speed: 65, // Ensure positive speed for simulation
+                        routeId: tripId || undefined // Explicitly tie to trip
+                     };
+                  });
+               });
+            } else {
+               // Show error or notification if polyline is invalid
+               console.error('No valid polyline received from backend.');
+            }
+
+            // Show which optimizer was actually used
+            const optimizerUsed = data.optimizerUsed || data.algorithm || 'unknown';
+            const isGpt = data.isGptOptimized === true;
+
+            // Generate AI insight based on metrics - ONLY if GPT-4 succeeded
+            if (data.metrics && isGpt) {
+               const m = data.metrics;
+               const insights = [];
+               if (m.distanceSaved > 0) insights.push(`Save ${m.distanceSaved} km (${m.efficiencyGain}% shorter)`);
+               if (m.timeSaved > 0) insights.push(`${m.timeSaved} min faster`);
+               if (m.costSavings > 0) insights.push(`₹${m.costSavings} cost savings`);
+               if (m.co2Reduction > 0) insights.push(`${m.co2Reduction} kg CO₂ reduced`);
+
+               setAiInsight(insights.length > 0 ? insights.join(" • ") + " (GPT-4 Powered)" : "Route optimized with GPT-4! 🚀");
+            }
+
+            if (data.recommendations?.length > 0) {
+               data.recommendations.forEach((r: string) => toast.info(r));
+            }
+
+            // Only show success toast if GPT-4 actually succeeded
+            // Hide fallback algorithm messages completely
+            if (isGpt) {
+               toast.success("Route optimized with GPT-4! 🚀");
+            } else {
+               // Silent success for fallback - no toast message
+               toast.info("Route optimization complete");
+            }
+
+            // 🚀 PERSIST IMMEDIATELY if we have a selected trip
+            if (selectedTrip && roadPath.length > 0) {
+               try {
+                  const updateData: any = {
+                     routePolyline: roadPath,
+                     isOptimized: true,
+                     optimizationScore: metrics?.efficiencyGain || 0,
+                     totalDistance: metrics?.distance || 0,
+                     totalDuration: metrics?.duration || 0,
+                     distanceSaved: metrics?.distanceSaved || 0,
+                     timeSaved: metrics?.timeSaved || 0,
+                     costSavings: metrics?.costSavings || 0,
+                     co2Reduction: metrics?.co2Reduction || 0,
+                     efficiencyGain: metrics?.efficiencyGain || 0
+                  };
+                  await routesApi.update(selectedTrip._id || selectedTrip.id!, updateData);
+                  try { await auditApi.add({ action: "route_optimized", target: `${selectedTrip.routeCode || selectedTrip.vehicle || "Route"}`, user: "current", createdAt: new Date().toISOString() } as any); } catch { }
+                  console.log("Optimized route persisted to DB", updateData);
+                  await reloadRoutes(); // Refresh local state with saved data
+               } catch (saveErr) {
+                  console.error("Failed to persist optimized route:", saveErr);
+               }
+            }
+
+            setIsOptimizing(false);
+         } catch (err: any) {
+            console.error("Optimization failed:", err);
+            const errorMessage = err.response?.data?.error || err.message || "Error optimizing route";
+            toast.error(errorMessage);
+            setIsOptimizing(false);
+         }
       } catch (err: any) {
          console.error("Optimization failed:", err);
          const errorMessage = err.response?.data?.error || err.message || "Error optimizing route";
@@ -485,6 +501,7 @@ export function RoutingPage() {
          };
 
          await routesApi.create(payload);
+         try { await auditApi.add({ action: "route_created", target: `${payload.routeCode || "Trip"} - ${payload.vehicle || "N/A"}`, user: "current", createdAt: new Date().toISOString() } as any); } catch { }
          toast.success("Trip created successfully");
          await reloadRoutes();
          setIsRouteModalOpen(false);
@@ -510,8 +527,10 @@ export function RoutingPage() {
 
    const handleDeleteRoute = async (id: string) => {
       if (!confirm("Delete this route?")) return;
+      const existing = routes.find(r => (r.id || r._id) === id);
       try {
          await routesApi.delete(id);
+         try { await auditApi.add({ action: "route_deleted", target: existing ? `${existing.routeCode || existing.vehicle || "Route"}` : id, user: "current", createdAt: new Date().toISOString() } as any); } catch { }
          toast.success("Route deleted");
          await reloadRoutes();
       } catch (err: any) {
@@ -541,6 +560,8 @@ export function RoutingPage() {
          }
 
          await routesApi.update(id, updateData);
+         const route = routes.find(r => (r.id || r._id) === id);
+         try { await auditApi.add({ action: "route_updated", target: `${route?.routeCode || route?.vehicle || "Route"} → ${newStatus}`, user: "current", createdAt: new Date().toISOString() } as any); } catch { }
          toast.success(`Trip marked as ${newStatus}`);
          await reloadRoutes();
       } catch (err: any) {
@@ -674,9 +695,15 @@ export function RoutingPage() {
             }
          }
 
-         // Snap current position to first point of path to avoid "teleporting"
-         const currentX = (waypointPath[0]) ? waypointPath[0].lng : startLng;
-         const currentY = (waypointPath[0]) ? waypointPath[0].lat : startLat;
+         // Resumption logic: Use last known position if trip is active
+         const lastPos = r.lastPosition;
+         const effectiveLat = lastPos?.lat ?? r.startLocation?.latitude ?? r.waypoints?.[0]?.latitude ?? 28.6139;
+         const effectiveLng = lastPos?.lng ?? r.startLocation?.longitude ?? r.waypoints?.[0]?.longitude ?? 77.2090;
+         const startIndex = lastPos?.waypointIndex ?? 0;
+
+         // Snap current position to path or use start coords
+         const currentX = (waypointPath[startIndex]) ? waypointPath[startIndex].lng : effectiveLng;
+         const currentY = (waypointPath[startIndex]) ? waypointPath[startIndex].lat : effectiveLat;
 
          return {
             id: r._id || r.id || `route-${idx}`,
@@ -686,7 +713,7 @@ export function RoutingPage() {
             targetLat: r.endLocation?.latitude,
             targetLng: r.endLocation?.longitude,
             routeWaypoints: waypointPath.length > 0 ? waypointPath : undefined,
-            waypointIndex: 0,
+            waypointIndex: startIndex,
             registration: reg,
             driver: driverName,
             status: isActive ? 'moving' : 'idle',
@@ -935,14 +962,17 @@ export function RoutingPage() {
          // Restore optimization results if this trip was previously optimized
          if (selectedTrip.isOptimized) {
             setOptimizationMetrics({
-               distanceSaved: selectedTrip.totalDistance && selectedTrip.totalDistance > 0 ? (selectedTrip.totalDistance * 0.15).toFixed(2) : 0,
-               timeSaved: selectedTrip.totalDuration && selectedTrip.totalDuration > 0 ? Math.floor(selectedTrip.totalDuration * 0.2) : 0,
-               costSavings: selectedTrip.totalDistance && selectedTrip.totalDistance > 0 ? (selectedTrip.totalDistance * 0.5).toFixed(2) : 0,
-               efficiencyGain: selectedTrip.optimizationScore || 12,
-               // Fallback values for visual persistence
+               distance: selectedTrip.totalDistance || 0,
+               duration: selectedTrip.totalDuration || 0,
+               efficiencyGain: selectedTrip.efficiencyGain || selectedTrip.optimizationScore || 0,
+               distanceSaved: selectedTrip.distanceSaved || 0,
+               timeSaved: selectedTrip.timeSaved || 0,
+               costSavings: selectedTrip.costSavings || 0,
+               co2Reduction: selectedTrip.co2Reduction || 0,
                routePolyline: selectedTrip.routePolyline
-            });
-            setAiInsight(`Previously optimized for ${selectedTrip.routeCode}. Enjoy ₹${(selectedTrip.totalDistance || 0) * 0.5} estimated savings! 🚀`);
+            } as any);
+            const savings = selectedTrip.costSavings || (selectedTrip.totalDistance || 0) * 0.5;
+            setAiInsight(`Previously optimized for ${selectedTrip.routeCode}. Enjoy ₹${Math.round(savings)} estimated savings! 🚀`);
          } else {
             // Clear if trip is not optimized
             setOptimizationMetrics(null);
@@ -1142,28 +1172,16 @@ export function RoutingPage() {
                               </button>
                            </div>
                            <button
-                              onClick={() => {
-                                 if (selectedTrip && selectedTrip.waypoints) {
-                                    const waypoints = [];
-                                    if (selectedTrip.startLocation) {
-                                       waypoints.push([selectedTrip.startLocation.latitude, selectedTrip.startLocation.longitude]);
-                                    }
-                                    selectedTrip.waypoints.forEach((w: any) => {
-                                       waypoints.push([w.latitude, w.longitude]);
-                                    });
-                                    if (selectedTrip.endLocation) {
-                                       waypoints.push([selectedTrip.endLocation.latitude, selectedTrip.endLocation.longitude]);
-                                    }
-                                    handleOptimize();
-                                 }
-                              }}
-                              disabled={isOptimizing}
+                              onClick={handleOptimize}
                               className="w-full py-2 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                            >
                               {isOptimizing ? <RotateCw className="animate-spin" size={14} /> : <Sparkles size={14} />}
                               {isOptimizing ? "Computing..." : "Optimize Route"}
                            </button>
 
+                           {optimizeError && (
+                              <div className="text-red-500 mt-2">{optimizeError}</div>
+                           )}
                            {optimizationMetrics && !isOptimizing && (
                               <motion.button
                                  initial={{ opacity: 0, scale: 0.95 }}

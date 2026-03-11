@@ -2,7 +2,8 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const dotenv = require('dotenv');
-dotenv.config();
+// Load .env from backend directory so it works when started from project root
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const connectDB = require('./config/db');
 const cors = require('cors');
@@ -82,6 +83,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Basic API status endpoint (must be before other /api routes)
+// Basic API status endpoint (must be before other /api routes)
 app.get('/api', (req, res) => {
   res.json({
     status: 'running',
@@ -110,16 +112,6 @@ console.log('registering dashboardRoutes');
 const dashboardRouter = require('./routes/dashboardRoutes');
 console.log('dashboardRoutes module loaded', typeof dashboardRouter);
 app.use('/api/dashboard', dashboardRouter);
-
-// Health check endpoint for monitoring/docker
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
 
 // If running in production mode, serve the built frontend from the backend
 if (process.env.NODE_ENV === 'production') {
@@ -189,4 +181,4 @@ if (require.main === module) {
 
 // trigger restart
 
-// Trigger nodemon restart again and again
+// Trigger nodemon restart again and again - Sync check 1

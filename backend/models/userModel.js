@@ -7,8 +7,8 @@ const userSchema = new mongoose.Schema({
   password: { type: String },
   // Google OAuth identifier (unique, sparse index so null values are allowed)
   googleId: { type: String, unique: true, sparse: true },
-  // Allow four roles: admin, manager, driver or customer
-  role: { type: String, enum: ['admin', 'manager', 'driver', 'customer'], default: 'manager' }
+  // Only Admin role allowed
+  role: { type: String, enum: ['admin'], default: 'admin' }
 }, { timestamps: true });
 
 // ensure user has either password or googleId before saving

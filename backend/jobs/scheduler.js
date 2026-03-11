@@ -121,8 +121,8 @@ async function processMaintenanceChecks() {
 
   const now = new Date();
 
-  // find maintenance records with nextDueAt due or overdue and no reminder present
-  const dueMaint = await Maintenance.find({ nextDueAt: { $exists: true, $lte: now } });
+  // find maintenance records with nextDueAt and no reminder present
+  const dueMaint = await Maintenance.find({ nextDueAt: { $exists: true } });
   let createdAny = false;
   for (const m of dueMaint) {
     try {
@@ -136,7 +136,7 @@ async function processMaintenanceChecks() {
       const v = await Vehicle.findById(m.vehicle);
       if (v && v.currentDriver) user = v.currentDriver;
 
-      await Reminder.create({ user, vehicle: m.vehicle, type: 'maintenance', message: `Maintenance due for vehicle ${m.vehicle}`, scheduleAt: m.nextDueAt, createdBy: m.createdBy });
+      await Reminder.create({ user, vehicle: m.vehicle, type: 'maintenance', message: `Maintenance due for vehicle ${m.vehicle}`, scheduleAt: m.nextDueAt, createdBy: m.createdBy, status: 'pending' });
       createdAny = true;
     } catch (err) {
       // swallow errors to avoid crash; consider logging

@@ -293,15 +293,21 @@ class GPSTrackingService {
         this.stopSimulation(vehicleId);
       }
 
-      const waypoints = route.waypoints || [
+      // Use real route polyline if available
+      let waypoints = route.routePolyline || route.waypoints || [
         { latitude: 40.7128, longitude: -74.006 },
         { latitude: 40.758, longitude: -73.9855 },
         { latitude: 40.7489, longitude: -73.968 }
       ];
+      // Convert polyline to waypoints if needed
+      if (Array.isArray(waypoints) && waypoints.length && waypoints[0].lat !== undefined) {
+        waypoints = waypoints.map(p => ({ latitude: p.lat, longitude: p.lng }));
+      }
 
       let currentPoint = 0;
       let progress = 0;
 
+      const maxSpeed = options.maxSpeed || 40; // km/h default
       const simulationInterval = setInterval(async () => {
         try {
           // Get current and next waypoint
@@ -315,7 +321,9 @@ class GPSTrackingService {
             end.latitude,
             end.longitude
           );
-          const stepDistance = (speed / 3.6) * (interval / 1000); // Convert km/h to m/s
+          // Enforce speed limit
+          const enforcedSpeed = Math.min(speed, maxSpeed);
+          const stepDistance = (enforcedSpeed / 3.6) * (interval / 1000); // Convert km/h to m/s
           progress += stepDistance / distance;
 
           if (progress >= 1) {
@@ -337,7 +345,7 @@ class GPSTrackingService {
           await this.updateLocation(vehicleId, {
             latitude: lat,
             longitude: lng,
-            speed: speed * (0.8 + Math.random() * 0.4), // Variable speed
+            speed: enforcedSpeed,
             heading: this.calculateHeading(
               start.latitude,
               start.longitude,
@@ -350,7 +358,8 @@ class GPSTrackingService {
             temperature: 85 + Math.random() * 10,
             metadata: {
               simulated: true,
-              simulationTime: new Date()
+              simulationTime: new Date(),
+              routePolyline: route.routePolyline || null
             }
           });
         } catch (error) {

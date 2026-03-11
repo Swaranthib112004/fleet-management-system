@@ -3,8 +3,8 @@ import { Plus, Search, Phone, Mail, Edit2, Trash2, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { cn } from "../lib/utils";
-import { driversApi } from "../lib/api";
-import type { Driver } from "../lib/types";
+import { driversApi, vehiclesApi, auditApi } from "../lib/api";
+import type { Driver, Vehicle } from "../lib/types";
 
 type DriverFormData = Omit<Driver, "id">;
 
@@ -30,6 +30,7 @@ export function DriversPage() {
   const [totalPages, setTotalPages] = React.useState(1);
   const [totalCount, setTotalCount] = React.useState(0);
   const pageSize = 6;
+  const [vehicles, setVehicles] = React.useState<Vehicle[]>([]);
 
   const openAddModal = () => {
     setEditingDriver(null);
@@ -48,9 +49,31 @@ export function DriversPage() {
     try {
       if (editingDriver) {
         await driversApi.update(editingDriver.id, formData);
+        // Audit log: update
+        try {
+          await auditApi.add({
+            action: "driver_updated",
+            target: editingDriver.name,
+            user: "current",
+            createdAt: new Date().toISOString(),
+          } as any);
+        } catch {
+          // ignore audit failures on frontend
+        }
         toast.success(`Driver ${formData.name} updated`);
       } else {
-        await driversApi.create(formData);
+        const created = await driversApi.create(formData);
+        // Audit log: create
+        try {
+          await auditApi.add({
+            action: "driver_created",
+            target: created.name || formData.name,
+            user: "current",
+            createdAt: new Date().toISOString(),
+          } as any);
+        } catch {
+          //
+        }
         toast.success(`Driver ${formData.name} registered`);
       }
       await reloadDrivers();
@@ -65,6 +88,17 @@ export function DriversPage() {
     if (!confirm(`Are you sure you want to remove ${name}?`)) return;
     try {
       await driversApi.delete(id);
+      // Audit log: delete
+      try {
+        await auditApi.add({
+          action: "driver_deleted",
+          target: name,
+          user: "current",
+          createdAt: new Date().toISOString(),
+        } as any);
+      } catch {
+        //
+      }
       toast.error(`${name} removed`);
       await reloadDrivers();
     } catch (err: any) {
@@ -105,6 +139,19 @@ export function DriversPage() {
   React.useEffect(() => {
     reloadDrivers();
   }, [currentPage, searchTerm]);
+
+  // Load vehicles once for assignment dropdown
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res: any = await vehiclesApi.getAll();
+        const list: Vehicle[] = res.vehicles || res || [];
+        setVehicles(list);
+      } catch {
+        setVehicles([]);
+      }
+    })();
+  }, []);
 
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto pb-10">
@@ -285,7 +332,18 @@ export function DriversPage() {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Assigned Vehicle</label>
-                    <input type="text" placeholder="e.g. VOL-2024-X" value={formData.assignedVehicle} onChange={(e) => handleFormChange("assignedVehicle", e.target.value)} className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium" />
+                    <select
+                      className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all font-medium"
+                      value={formData.assignedVehicle || "Unassigned"}
+                      onChange={(e) => handleFormChange("assignedVehicle", e.target.value)}
+                    >
+                      <option value="Unassigned">Unassigned</option>
+                      {vehicles.map((v) => (
+                        <option key={v.id} value={v.registration}>
+                          {v.registration} ({v.make} {v.model})
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

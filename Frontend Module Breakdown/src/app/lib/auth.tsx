@@ -11,6 +11,7 @@ interface AuthContextType {
   token: string | null;
   user: UserProfile | null;
   login: (email: string, password: string, role?: string) => Promise<void>;
+  register: (name: string, email: string, password: string, role: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
   initializing: boolean;
@@ -100,6 +101,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const register = async (name: string, email: string, password: string, role: string) => {
+    setLoading(true);
+    try {
+      await request("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ name, email, password, role }),
+      });
+      // The user successfully registered. They will be directed to login via the UI wrapper.
+      setLoading(false);
+    } catch (err: any) {
+      setLoading(false);
+      if (err.message && err.message.toLowerCase().includes('failed to fetch')) {
+        throw new Error('Unable to reach the backend server. Is it running on port 8000?');
+      }
+      throw err;
+    }
+  };
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -107,7 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, login, logout, loading, initializing }}>
+    <AuthContext.Provider value={{ token, user, login, register, logout, loading, initializing }}>
       {children}
     </AuthContext.Provider>
   );

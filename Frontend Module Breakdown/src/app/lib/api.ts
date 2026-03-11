@@ -215,7 +215,14 @@ export const remindersApi = {
         const res = await request(`/api/reminders`, { method: "POST", body: JSON.stringify(data) });
         return normalizeId(res.reminder || res);
     },
-    // other endpoints as appropriate
+    update: async (id: string, data: { status?: string; scheduleAt?: string; message?: string }) => {
+        const res = await request(`/api/reminders/${id}`, { method: "PUT", body: JSON.stringify(data) });
+        return normalizeId(res.reminder || res);
+    },
+    cancel: async (id: string) => {
+        const res = await request(`/api/reminders/${id}/cancel`, { method: "POST" });
+        return normalizeId(res.reminder || res);
+    },
 };
 
 // =====================
@@ -289,6 +296,7 @@ export interface ChatResponse {
     isQuery?: boolean;
     isRecommendation?: boolean;
     timestamp?: Date;
+    actionSuggestion?: any;
 }
 
 export interface QueryResult {
@@ -330,6 +338,14 @@ export const aiAssistantApi = {
 
     getFleetContext: async () => {
         const res: any = await request(`/api/ai/context`);
+        return res.data || res;
+    },
+
+    executeAction: async (action: any) => {
+        const res: any = await request(`/api/ai/action`, {
+            method: "POST",
+            body: JSON.stringify({ action })
+        });
         return res.data || res;
     }
 };

@@ -48,7 +48,8 @@ export async function request(path: string, options: RequestOptions = {}) {
   }
   
   if (!res.ok) {
-    const err: any = new Error(data?.message || res.statusText || "Request failed");
+    const msg = data?.details || data?.error || data?.message || res.statusText || "Request failed";
+    const err: any = new Error(msg);
     err.status = res.status;
     err.body = data;
     
