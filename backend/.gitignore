@@ -1,0 +1,9 @@
+node_modules/
+.env
+dist/
+*.log
+uploads/
+db_result.txt
+db_counts.json
+seed_output.txt
+server_out.txt
