@@ -1,0 +1,11 @@
+node_modules/
+.env
+dist/
+build/
+*.log
+tsc_out.txt
+lint_out.txt
+build_out.txt
+build_result.txt
+lint_result.txt
+npm_list.txt

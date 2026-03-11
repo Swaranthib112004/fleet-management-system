@@ -1,0 +1,8 @@
+services:
+  - type: static
+    name: fleet-management-frontend
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    envVars:
+      - key: VITE_API_BASE
+        sync: false # Set to your backend Render URL (e.g. https://fleet-management-backend.onrender.com)
