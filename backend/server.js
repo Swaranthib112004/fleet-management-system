@@ -36,32 +36,10 @@ app.use(helmet({
 }));
 
 // Configure CORS to allow the frontend(s) to access this API.
-// You can override with an env var (comma-separated list) for preview deployments.
-const corsOrigins = (process.env.CORS_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
-
-const allowedOrigins = corsOrigins.length > 0
-  ? corsOrigins
-  : [
-      "https://fleet-management-system-virid-seven.vercel.app",
-      "https://fleet-management-system-git-main-swaranthib112004s-projects.vercel.app",
-      "http://localhost:5173"
-    ];
-
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-
-    // Allow vercel preview domains (they change per deployment)
-    if (origin.endsWith('.vercel.app') || origin.endsWith('.vercel.sh')) {
-      return callback(null, true);
-    }
-
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error(`CORS policy does not allow access from origin: ${origin}`));
-  },
-  credentials: true
+  origin: "*"
 }));
+
 
 app.use(
   rateLimit({
@@ -128,7 +106,7 @@ app.use(errorHandler);
 // Initialize Socket.IO with SocketIOManager
 const socketIOManager = new SocketIOManager(server);
 
-const PORT = process.env.PORT || 6000;
+const PORT = process.env.PORT || 8000;
 
 // export the express app as default for tests; attach others as properties
 module.exports = app;
