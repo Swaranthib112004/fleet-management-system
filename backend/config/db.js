@@ -12,13 +12,23 @@ const connectDB = async () => {
   const mongoUri = process.env.MONGO_URI || process.env.DATABASE_URL || 'mongodb://localhost:27017/fleet-management';
 
   if (!mongoUri) {
-    console.error('❌ MongoDB connection string is not defined. Set MONGO_URI in .env');
+    console.error('❌ MongoDB connection string is not defined. Set MONGO_URI in .env or in your host environment.');
     process.exit(1);
   }
 
+  // Hint: If you're on a hosted platform (Render/Vercel/Heroku), you must set MONGO_URI to a remote MongoDB (e.g., Atlas).
+  if (process.env.NODE_ENV === 'production' && mongoUri.includes('localhost')) {
+    console.warn('⚠️ You are running in production mode but MongoDB is set to localhost. This will not work on managed hosts.');
+  }
+
   try {
-    // mongoose 6+ uses new URL parser and unified topology by default; options removed
-    await mongoose.connect(mongoUri);
+    // mongoose 6+ uses new URL parser and unified topology by default.
+    // Set a shorter server selection timeout so failures happen quickly instead of buffering.
+    await mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+    });
+
     console.log('✅ MongoDB Connected');
 
     // optionally seed development data when explicitly enabled
