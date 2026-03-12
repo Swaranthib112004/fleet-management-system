@@ -95,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
       // network failure (server down / CORS) shows "Failed to fetch" message
       if (err.message && err.message.toLowerCase().includes('failed to fetch')) {
-        throw new Error('Unable to reach the backend server. Is it running on port 8000?');
+        throw new Error('Unable to reach the backend server. Please check your backend URL (VITE_API_BASE) and CORS settings.');
       }
       throw err;
     }
@@ -113,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err: any) {
       setLoading(false);
       if (err.message && err.message.toLowerCase().includes('failed to fetch')) {
-        throw new Error('Unable to reach the backend server. Is it running on port 8000?');
+        throw new Error('Unable to reach the backend server. Please check your backend URL (VITE_API_BASE) and CORS settings.');
       }
       throw err;
     }
