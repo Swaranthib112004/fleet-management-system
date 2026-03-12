@@ -31,7 +31,7 @@ export function LoginPage() {
   };
 
   const handleGoogleLogin = () => {
-    const baseUrl = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+    const baseUrl = import.meta.env.VITE_API_BASE || "https://fleet-management-backend-p8kw.onrender.com";
     window.location.href = `${baseUrl}/api/auth/google?role=admin`;
   };
 

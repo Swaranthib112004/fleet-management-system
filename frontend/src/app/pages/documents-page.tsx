@@ -94,7 +94,7 @@ export function DocumentsPage() {
     }
 
     try {
-      const baseUrl = (import.meta as any).env.VITE_API_BASE || 'http://localhost:8000';
+      const baseUrl = (import.meta as any).env.VITE_API_BASE || 'https://fleet-management-backend-p8kw.onrender.com';
       let token: string | null = null;
       try { token = localStorage.getItem('fp_token'); } catch { token = null; }
 

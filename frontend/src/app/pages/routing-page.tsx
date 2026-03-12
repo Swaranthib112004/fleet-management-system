@@ -886,7 +886,7 @@ export function RoutingPage() {
    // Socket for real-time locations
    React.useEffect(() => {
       const token = localStorage.getItem("fp_token");
-      const socket = io((import.meta as any).env?.VITE_API_BASE || "http://localhost:8000", {
+      const socket = io((import.meta as any).env?.VITE_API_BASE || "https://fleet-management-backend-p8kw.onrender.com", {
          auth: { token }
       });
       socket.on("location-updated", (payload: any) => {
