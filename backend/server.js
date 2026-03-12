@@ -4,7 +4,6 @@ const path = require('path');
 const dotenv = require('dotenv');
 // Load .env from backend directory so it works when started from project root
 dotenv.config({ path: path.join(__dirname, '.env') });
-
 const connectDB = require('./config/db');
 const cors = require('cors');
 const session = require('express-session');
@@ -36,11 +35,31 @@ app.use(helmet({
   contentSecurityPolicy: false, 
 }));
 
+// Configure CORS to allow the frontend(s) to access this API.
+// You can override with an env var (comma-separated list) for preview deployments.
+const corsOrigins = (process.env.CORS_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
+
+const allowedOrigins = corsOrigins.length > 0
+  ? corsOrigins
+  : [
+      "https://fleet-management-system-virid-seven.vercel.app",
+      "https://fleet-management-system-git-main-swaranthib112004s-projects.vercel.app",
+      "http://localhost:5173"
+    ];
+
 app.use(cors({
-  origin: [
-    "https://fleet-management-system-virid-seven.vercel.app",
-    "http://localhost:5173"
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+
+    // Allow vercel preview domains (they change per deployment)
+    if (origin.endsWith('.vercel.app') || origin.endsWith('.vercel.sh')) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS policy does not allow access from origin: ${origin}`));
+  },
   credentials: true
 }));
 
@@ -109,7 +128,7 @@ app.use(errorHandler);
 // Initialize Socket.IO with SocketIOManager
 const socketIOManager = new SocketIOManager(server);
 
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 6000;
 
 // export the express app as default for tests; attach others as properties
 module.exports = app;
@@ -117,7 +136,7 @@ module.exports.server = server;
 
 if (require.main === module) {
   // Attempt to start once; exit on fatal errors (e.g. port in use).
-  server.listen(PORT, () => console.log(`Server running on port ${PORT}`))
+  server.listen(PORT, () => logger.info(`🚀 Server running on port ${PORT}`))
     .on('error', (err) => {
       if (err && err.code === 'EADDRINUSE') {
         logger.error(`❌ Port ${PORT} is already in use. Exiting.`);

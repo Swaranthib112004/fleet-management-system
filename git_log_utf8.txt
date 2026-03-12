@@ -1,0 +1,5 @@
+﻿2236935 fix api base url
+f224d71 Log warning when production uses localhost MongoDB; tighten mongoose connect timeouts
+fadeb4b Allow any vercel.app/vercel.sh origin in backend CORS whitelist
+a23772b Allow Vercel preview domain in CORS whitelist and support CORS_ORIGINS env var
+3ed46e9 Make backend unreachable error message generic and remove port 8000 reference

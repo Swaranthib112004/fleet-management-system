@@ -11,7 +11,8 @@ const MapRouteView = () => {
 
     // Fetch optimized route polyline from backend
     async function fetchRoutePolyline() {
-      const resp = await fetch('/api/route/optimized-polyline');
+      const baseUrl = import.meta.env.VITE_API_BASE || 'https://fleet-management-backend-p8kw.onrender.com';
+      const resp = await fetch(`${baseUrl}/api/route/optimized-polyline`);
       const data = await resp.json();
       const polyline = data.routePolyline || [];
       // Ensure polyline is valid and has more than 2 points

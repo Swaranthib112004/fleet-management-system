@@ -43,9 +43,13 @@ const connectDB = async () => {
     console.error('❌ Failed to connect to MongoDB:', err && err.message ? err.message : err);
 
     // Fallback: if MongoDB is not available, optionally start an in-memory MongoDB.
-    // Use USE_IN_MEMORY_MONGO=true to enable this in any environment.
-    // Set NO_IN_MEMORY_MONGO=true to disable this fallback.
-    if (process.env.NO_IN_MEMORY_MONGO !== 'true') {
+    // Only enable this when explicitly requested (e.g. for local dev/test environments).
+    // Set USE_IN_MEMORY_MONGO=true to enable this behavior.
+    // Set NO_IN_MEMORY_MONGO=true to explicitly disable it.
+    const useInMemory = process.env.USE_IN_MEMORY_MONGO === 'true';
+    const disableInMemory = process.env.NO_IN_MEMORY_MONGO === 'true';
+
+    if (useInMemory && !disableInMemory) {
       console.warn('⚠️ Falling back to in-memory MongoDB (mongodb-memory-server).');
       try {
         const { MongoMemoryServer } = require('mongodb-memory-server');
