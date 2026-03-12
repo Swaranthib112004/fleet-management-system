@@ -1,4 +1,5 @@
 import React from "react";
+import { request } from "../lib/http";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -22,64 +23,9 @@ import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 export function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
-  // test backend connectivity on first render
+  // verify backend connectivity on first render
   React.useEffect(() => {
-    fetch('/api')
-      .then(res => res.text())
-      .then(text => console.log('backend says:', text))
-      .catch(err => console.error('backend error', err));
-
-    // #region agent log
-    // Debug: capture basic CSS / Tailwind presence diagnostics on first render.
-    fetch('http://127.0.0.1:7512/ingest/2137d9ff-2cee-4a27-9f75-e5733aef43aa', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Debug-Session-Id': '578949'
-      },
-      body: JSON.stringify({
-        sessionId: '578949',
-        runId: 'css-debug-landing',
-        hypothesisId: 'H1',
-        location: 'landing-page.tsx:27',
-        message: 'LandingPage mounted; CSS diagnostics',
-        data: (() => {
-          let testBg = '';
-          try {
-            const el = document.createElement('div');
-            el.className = 'bg-blue-600';
-            el.style.position = 'absolute';
-            el.style.left = '-9999px';
-            document.body.appendChild(el);
-            testBg = window.getComputedStyle(el).backgroundColor;
-            document.body.removeChild(el);
-          } catch (e) {
-            testBg = 'error:' + (e as Error).message;
-          }
-
-          let styleSheetHrefs: string[] = [];
-          try {
-            styleSheetHrefs = Array.from(document.styleSheets)
-              .map((s) => (s.href ? String(s.href) : 'inline'))
-              .slice(0, 10);
-          } catch {
-            styleSheetHrefs = ['error-reading-stylesheets'];
-          }
-
-          const styleTags = Array.from(
-            document.querySelectorAll('style,link[rel="stylesheet"]')
-          ).length;
-
-          return {
-            testBg,
-            styleSheetHrefs,
-            styleTags
-          };
-        })(),
-        timestamp: Date.now()
-      })
-    }).catch(() => {});
-    // #endregion agent log
+    request('/api').catch(err => console.warn('backend ping failed:', err));
   }, []);
 
   return (

@@ -4,6 +4,7 @@ import { router } from "./routes.tsx";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { request } from "./lib/http";
 
 // wrapper for routes that require authentication
 function ProtectedRoute({ children }: { children: JSX.Element }) {
@@ -22,14 +23,11 @@ function ProtectedRoute({ children }: { children: JSX.Element }) {
 export default function App() {
   // on mount ping backend to warn if it's not running or unreachable
   React.useEffect(() => {
-    fetch('/api')
-      .then((r) => {
-        if (!r.ok) throw new Error('Bad response');
-      })
+    request('/api')
       .catch(() => {
         // show only once
         import('sonner').then(({ toast }) => {
-          toast.error('Cannot reach backend server. Make sure backend is running on port 8000.');
+          toast.error('Cannot reach backend server. Check your connection or try again later.');
         });
       });
   }, []);
