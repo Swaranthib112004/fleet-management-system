@@ -1,4 +1,4 @@
-@baseUrl = http://localhost:5000/api
+@baseUrl = https://fleet-management-backend-p8kw.onrender.com/api
 
 ### LOGIN (AUTH WORKING)
 POST {{baseUrl}}/auth/login

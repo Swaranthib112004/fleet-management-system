@@ -1,6 +1,6 @@
 // simple fetch wrapper with error handling and environment base URL
 
-const BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+const BASE = import.meta.env.VITE_API_BASE || "https://fleet-management-backend-p8kw.onrender.com";
 
 export interface RequestOptions extends RequestInit {
   headers?: Record<string, string>;

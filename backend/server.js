@@ -37,18 +37,8 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
-      return callback(null, true);
-    }
-    const allowedOrigins = [process.env.FRONTEND_URL].filter(Boolean);
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(null, true); // Fallback for production testing
-    }
-  },
-  credentials: true
+  origin: "*",
+  credentials: false
 }));
 
 app.use(
